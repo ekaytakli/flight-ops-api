@@ -1,0 +1,648 @@
+openapi: 3.0.3
+info:
+  title: Flight Operations Incident API
+  version: 1.0.0
+  description: Denetlenebilir olay geçmişi ve role göre erişim sunan uçuş incident
+    iş akışları.
+paths:
+  /api/auth/me/:
+    get:
+      operationId: auth_me_retrieve
+      tags:
+      - auth
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentUser'
+          description: ''
+  /api/auth/token/:
+    post:
+      operationId: auth_token_create
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AuthToken'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AuthToken'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthToken'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthToken'
+          description: ''
+  /api/flights/:
+    get:
+      operationId: flights_list
+      tags:
+      - flights
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Flight'
+          description: ''
+    post:
+      operationId: flights_create
+      tags:
+      - flights
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Flight'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Flight'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Flight'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Flight'
+          description: ''
+  /api/flights/{id}/:
+    get:
+      operationId: flights_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this flight.
+        required: true
+      tags:
+      - flights
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Flight'
+          description: ''
+    put:
+      operationId: flights_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this flight.
+        required: true
+      tags:
+      - flights
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Flight'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Flight'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Flight'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Flight'
+          description: ''
+    patch:
+      operationId: flights_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this flight.
+        required: true
+      tags:
+      - flights
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedFlight'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedFlight'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedFlight'
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Flight'
+          description: ''
+    delete:
+      operationId: flights_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this flight.
+        required: true
+      tags:
+      - flights
+      security:
+      - tokenAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/incidents/:
+    get:
+      operationId: incidents_list
+      parameters:
+      - in: query
+        name: kind
+        schema:
+          type: string
+          enum:
+          - CANCELLATION
+          - DELAY
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - IN_PROGRESS
+          - OPEN
+          - RESOLVED
+      tags:
+      - incidents
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Incident'
+          description: ''
+    post:
+      operationId: incidents_create
+      tags:
+      - incidents
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Incident'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Incident'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Incident'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Incident'
+          description: ''
+  /api/incidents/{id}/:
+    get:
+      operationId: incidents_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this incident.
+        required: true
+      tags:
+      - incidents
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Incident'
+          description: ''
+  /api/incidents/{id}/assign/:
+    post:
+      operationId: incidents_assign_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this incident.
+        required: true
+      tags:
+      - incidents
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Assignment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Assignment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Assignment'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Incident'
+          description: ''
+  /api/incidents/{id}/events/:
+    get:
+      operationId: incidents_events_list
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this incident.
+        required: true
+      tags:
+      - incidents
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/IncidentEvent'
+          description: ''
+  /api/incidents/{id}/resolve/:
+    post:
+      operationId: incidents_resolve_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this incident.
+        required: true
+      tags:
+      - incidents
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Resolution'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Resolution'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Resolution'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Incident'
+          description: ''
+  /api/incidents/{id}/start/:
+    post:
+      operationId: incidents_start_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this incident.
+        required: true
+      tags:
+      - incidents
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Incident'
+          description: ''
+  /api/operators/:
+    get:
+      operationId: operators_list
+      tags:
+      - operators
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Operator'
+          description: ''
+components:
+  schemas:
+    Assignment:
+      type: object
+      properties:
+        operator_id:
+          type: integer
+      required:
+      - operator_id
+    AuthToken:
+      type: object
+      properties:
+        username:
+          type: string
+          writeOnly: true
+        password:
+          type: string
+          writeOnly: true
+        token:
+          type: string
+          readOnly: true
+      required:
+      - password
+      - token
+      - username
+    BlankEnum:
+      enum:
+      - ''
+    CurrentUser:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        username:
+          type: string
+          readOnly: true
+        role:
+          allOf:
+          - $ref: '#/components/schemas/RoleEnum'
+          readOnly: true
+      required:
+      - id
+      - role
+      - username
+    EventTypeEnum:
+      enum:
+      - CREATED
+      - ASSIGNED
+      - STARTED
+      - RESOLVED
+      type: string
+      description: |-
+        * `CREATED` - Created
+        * `ASSIGNED` - Assigned
+        * `STARTED` - Started
+        * `RESOLVED` - Resolved
+    Flight:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        flight_number:
+          type: string
+          maxLength: 8
+        departure_airport_code:
+          type: string
+          pattern: ^[A-Z]{3}$
+          maxLength: 3
+        arrival_airport_code:
+          type: string
+          pattern: ^[A-Z]{3}$
+          maxLength: 3
+        scheduled_departure:
+          type: string
+          format: date-time
+        scheduled_arrival:
+          type: string
+          format: date-time
+      required:
+      - arrival_airport_code
+      - departure_airport_code
+      - flight_number
+      - id
+      - scheduled_arrival
+      - scheduled_departure
+    Incident:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        flight:
+          type: integer
+        flight_details:
+          allOf:
+          - $ref: '#/components/schemas/Flight'
+          readOnly: true
+        kind:
+          $ref: '#/components/schemas/KindEnum'
+        description:
+          type: string
+        created_by:
+          type: string
+          readOnly: true
+        assigned_to:
+          type: string
+          readOnly: true
+          nullable: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/IncidentStatusEnum'
+          readOnly: true
+        resolution_notes:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - assigned_to
+      - created_at
+      - created_by
+      - description
+      - flight
+      - flight_details
+      - id
+      - kind
+      - resolution_notes
+      - status
+      - updated_at
+    IncidentEvent:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        event_type:
+          $ref: '#/components/schemas/EventTypeEnum'
+        actor:
+          type: string
+          readOnly: true
+        previous_status:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/IncidentStatusEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        new_status:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/IncidentStatusEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        details: {}
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - actor
+      - created_at
+      - event_type
+      - id
+    IncidentStatusEnum:
+      enum:
+      - OPEN
+      - IN_PROGRESS
+      - RESOLVED
+      type: string
+      description: |-
+        * `OPEN` - Open
+        * `IN_PROGRESS` - In progress
+        * `RESOLVED` - Resolved
+    KindEnum:
+      enum:
+      - DELAY
+      - CANCELLATION
+      type: string
+      description: |-
+        * `DELAY` - Delay
+        * `CANCELLATION` - Cancellation
+    NullEnum:
+      enum:
+      - null
+    Operator:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        username:
+          type: string
+          readOnly: true
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+        first_name:
+          type: string
+          readOnly: true
+        last_name:
+          type: string
+          readOnly: true
+      required:
+      - first_name
+      - id
+      - last_name
+      - username
+    PatchedFlight:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        flight_number:
+          type: string
+          maxLength: 8
+        departure_airport_code:
+          type: string
+          pattern: ^[A-Z]{3}$
+          maxLength: 3
+        arrival_airport_code:
+          type: string
+          pattern: ^[A-Z]{3}$
+          maxLength: 3
+        scheduled_departure:
+          type: string
+          format: date-time
+        scheduled_arrival:
+          type: string
+          format: date-time
+    Resolution:
+      type: object
+      properties:
+        resolution_notes:
+          type: string
+          maxLength: 10000
+      required:
+      - resolution_notes
+    RoleEnum:
+      enum:
+      - team_lead
+      - operator
+      type: string
+      description: |-
+        * `team_lead` - team_lead
+        * `operator` - operator
+  securitySchemes:
+    tokenAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: Token-based authentication with required prefix "Token"
