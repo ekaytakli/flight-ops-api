@@ -61,7 +61,7 @@ class DashboardTests(APITestCase):
             "flight": self.flight, "kind": "CANCELLATION", "description": "Technical issue",
         }, actor=self.lead)
         self.client.force_authenticate(self.operator)
-        self.assertEqual(self.client.get("/api/incidents/").data, [])
+        self.assertEqual(self.client.get("/api/incidents/").data["results"], [])
         self.assertEqual(self.client.get(f"/api/incidents/{incident.pk}/").status_code, 404)
         assign_incident(incident_id=incident.pk, actor=self.lead, operator=self.operator)
         response = self.client.get(f"/api/incidents/{incident.pk}/")

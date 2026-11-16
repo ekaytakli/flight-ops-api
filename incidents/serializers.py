@@ -1,4 +1,9 @@
 from django.contrib.auth import get_user_model
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.utils import timezone
+from django.utils.translation import override
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from .models import Flight, Incident, IncidentEvent
@@ -47,6 +52,18 @@ class FlightSerializer(serializers.ModelSerializer):
 
 
 class IncidentSerializer(serializers.ModelSerializer):
+    waiting_seconds = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.IntegerField(min_value=0))
+    def get_waiting_seconds(self, instance):
+        if instance.status == Incident.Status.OPEN:
+            end = timezone.now()
+        elif hasattr(instance, "work_started_at"):
+            end = instance.work_started_at
+        else:
+            end = instance.events.filter(event_type=IncidentEvent.Type.STARTED).values_list("created_at", flat=True).first()
+        return max(0, int((end - instance.created_at).total_seconds())) if end else 0
+
     flight_details = FlightSerializer(source="flight", read_only=True)
     created_by = serializers.CharField(source="created_by.username", read_only=True)
     assigned_to = serializers.CharField(
@@ -63,6 +80,8 @@ class IncidentSerializer(serializers.ModelSerializer):
             "flight_details",
             "kind",
             "description",
+            "priority",
+            "waiting_seconds",
             "created_by",
             "assigned_to",
             "status",
@@ -131,3 +150,32 @@ class CurrentUserSerializer(serializers.Serializer):
     id = serializers.IntegerField(read_only=True)
     username = serializers.CharField(read_only=True)
     role = serializers.ChoiceField(choices=["team_lead", "operator"], read_only=True)
+
+
+class PrioritySerializer(serializers.Serializer):
+    priority = serializers.ChoiceField(choices=Incident.Priority.choices)
+
+
+class IncidentSummarySerializer(serializers.Serializer):
+    total = serializers.IntegerField(read_only=True)
+    open = serializers.IntegerField(read_only=True)
+    in_progress = serializers.IntegerField(read_only=True)
+    resolved = serializers.IntegerField(read_only=True)
+
+
+class PasswordChangeSerializer(serializers.Serializer):
+    old_password = serializers.CharField(write_only=True, trim_whitespace=False)
+    new_password = serializers.CharField(write_only=True, trim_whitespace=False)
+
+    def validate(self, attrs):
+        user = self.context["user"]
+        if not user.check_password(attrs["old_password"]):
+            raise serializers.ValidationError({"old_password": "Mevcut parola yanlış."})
+        if attrs["old_password"] == attrs["new_password"]:
+            raise serializers.ValidationError({"new_password": "Yeni parola mevcut paroladan farklı olmalıdır."})
+        try:
+            with override("tr"):
+                validate_password(attrs["new_password"], user=user)
+        except DjangoValidationError as error:
+            raise serializers.ValidationError({"new_password": error.messages})
+        return attrs

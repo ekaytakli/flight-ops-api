@@ -87,6 +87,28 @@ def create_incident(*, validated_data, actor):
         event_type=IncidentEvent.Type.CREATED,
         actor=actor,
         new_status=incident.status,
-        details={"kind": incident.kind},
+        details={"kind": incident.kind, "priority": incident.priority},
+    )
+    return incident
+
+
+@transaction.atomic
+def change_priority(*, incident_id, actor, priority):
+    incident = Incident.objects.select_for_update().get(pk=incident_id)
+    if not is_team_lead(actor):
+        raise PermissionDenied("Only team leads can change priority.")
+    if incident.status == Incident.Status.RESOLVED:
+        raise ValidationError({"priority": "Resolved incidents cannot change priority."})
+    if priority not in Incident.Priority.values:
+        raise ValidationError({"priority": "Select a valid priority."})
+    if incident.priority == priority:
+        return incident
+    previous_priority = incident.priority
+    incident.priority = priority
+    incident.save(update_fields=["priority", "updated_at"])
+    IncidentEvent.objects.create(
+        incident=incident, event_type=IncidentEvent.Type.PRIORITY_CHANGED, actor=actor,
+        previous_status=incident.status, new_status=incident.status,
+        details={"previous_priority": previous_priority, "priority": priority},
     )
     return incident

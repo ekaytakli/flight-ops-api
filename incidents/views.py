@@ -1,6 +1,10 @@
 from django.contrib.auth import get_user_model
+from django.db import transaction
+from django.db.models import Case, Count, IntegerField, OuterRef, Q, Subquery, Value, When
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
 from rest_framework import mixins, viewsets
+from rest_framework.authtoken.models import Token
+from rest_framework.filters import SearchFilter
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
@@ -8,6 +12,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import Flight, Incident, IncidentEvent
+from .filters import IncidentOrderingFilter, StableOrderingFilter
+from .pagination import OperationsPagination
 from .permissions import IsTeamLead, IsTeamLeadOrAssignedOperator, IsTeamLeadOrOperator
 from .roles import is_operator, is_team_lead
 from .serializers import (
@@ -18,8 +24,11 @@ from .serializers import (
     IncidentSerializer,
     ResolutionSerializer,
     OperatorSerializer,
+    PasswordChangeSerializer,
+    PrioritySerializer,
+    IncidentSummarySerializer,
 )
-from .services import assign_incident, create_incident, resolve_incident, start_incident
+from .services import assign_incident, change_priority, create_incident, resolve_incident, start_incident
 
 
 class CurrentUserView(APIView):
@@ -42,16 +51,42 @@ class OperatorListView(mixins.ListModelMixin, viewsets.GenericViewSet):
     ).distinct().order_by("username")
 
 
+class LogoutView(APIView):
+    @extend_schema(request=None, responses={204: None})
+    def post(self, request):
+        request.auth.delete()
+        return Response(status=204)
+
+
+class PasswordChangeView(APIView):
+    @extend_schema(request=PasswordChangeSerializer, responses={204: None})
+    @transaction.atomic
+    def post(self, request):
+        user = get_user_model().objects.select_for_update().get(pk=request.user.pk)
+        serializer = PasswordChangeSerializer(data=request.data, context={"user": user})
+        serializer.is_valid(raise_exception=True)
+        user.set_password(serializer.validated_data["new_password"])
+        user.save(update_fields=["password"])
+        Token.objects.filter(user=user).delete()
+        return Response(status=204)
+
+
 class FlightViewSet(viewsets.ModelViewSet):
     queryset = Flight.objects.all()
     serializer_class = FlightSerializer
     permission_classes = [IsAuthenticated, IsTeamLead]
+    pagination_class = OperationsPagination
+    filter_backends = [SearchFilter, StableOrderingFilter]
+    search_fields = ["flight_number", "departure_airport_code", "arrival_airport_code"]
+    ordering_fields = ["scheduled_departure", "scheduled_arrival", "flight_number", "id"]
+    ordering = ["scheduled_departure", "id"]
 
 
 @extend_schema_view(
     list=extend_schema(parameters=[
         OpenApiParameter("status", str, enum=Incident.Status.values),
         OpenApiParameter("kind", str, enum=Incident.Kind.values),
+        OpenApiParameter("priority", str, enum=Incident.Priority.values),
     ]),
 )
 class IncidentViewSet(
@@ -61,6 +96,11 @@ class IncidentViewSet(
     viewsets.GenericViewSet,
 ):
     serializer_class = IncidentSerializer
+    pagination_class = OperationsPagination
+    filter_backends = [SearchFilter, IncidentOrderingFilter]
+    search_fields = ["flight__flight_number", "flight__departure_airport_code", "flight__arrival_airport_code", "description", "assigned_to__username"]
+    ordering_fields = ["created_at", "updated_at", "priority", "flight__flight_number", "id"]
+    ordering = ["-created_at", "-pk"]
     permission_classes = [
         IsAuthenticated,
         IsTeamLeadOrOperator,
@@ -68,7 +108,16 @@ class IncidentViewSet(
     ]
 
     def get_queryset(self):
-        queryset = Incident.objects.select_related("flight", "created_by", "assigned_to")
+        started = IncidentEvent.objects.filter(
+            incident_id=OuterRef("pk"), event_type=IncidentEvent.Type.STARTED,
+        ).order_by("created_at", "pk").values("created_at")[:1]
+        queryset = Incident.objects.select_related("flight", "created_by", "assigned_to").annotate(
+            work_started_at=Subquery(started),
+            priority_rank=Case(
+                *[When(priority=value, then=Value(rank)) for rank, value in enumerate(Incident.Priority.values)],
+                default=Value(1), output_field=IntegerField(),
+            ),
+        )
         if is_team_lead(self.request.user):
             pass
         elif is_operator(self.request.user):
@@ -76,16 +125,16 @@ class IncidentViewSet(
         else:
             return queryset.none()
 
-        incident_status = self.request.query_params.get("status")
-        incident_kind = self.request.query_params.get("kind")
-        if incident_status:
-            queryset = queryset.filter(status=incident_status.upper())
-        if incident_kind:
-            queryset = queryset.filter(kind=incident_kind.upper())
+        if self.action != "list":
+            return queryset
+        for field in ("status", "kind", "priority"):
+            value = self.request.query_params.get(field)
+            if value:
+                queryset = queryset.filter(**{field: value.upper()})
         return queryset
 
     def get_permissions(self):
-        if self.action in ("create", "assign"):
+        if self.action in ("create", "assign", "priority"):
             return [permission() for permission in (IsAuthenticated, IsTeamLead)]
         return super().get_permissions()
 
@@ -95,8 +144,28 @@ class IncidentViewSet(
             actor=self.request.user,
         )
 
+    @extend_schema(responses=IncidentSummarySerializer, filters=False)
+    @action(detail=False, methods=["get"], pagination_class=None)
+    def summary(self, request):
+        counts = self.get_queryset().aggregate(
+            total=Count("pk"), open=Count("pk", filter=Q(status=Incident.Status.OPEN)),
+            in_progress=Count("pk", filter=Q(status=Incident.Status.IN_PROGRESS)),
+            resolved=Count("pk", filter=Q(status=Incident.Status.RESOLVED)),
+        )
+        return Response(counts)
+
+    @extend_schema(request=PrioritySerializer, responses=IncidentSerializer)
+    @action(detail=True, methods=["post"])
+    def priority(self, request, pk=None):
+        incident = self.get_object()
+        serializer = PrioritySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        incident = change_priority(incident_id=incident.pk, actor=request.user,
+                                   priority=serializer.validated_data["priority"])
+        return Response(self.get_serializer(incident).data)
+
     @extend_schema(responses=IncidentEventSerializer(many=True))
-    @action(detail=True, methods=["get"])
+    @action(detail=True, methods=["get"], filter_backends=[], pagination_class=None)
     def events(self, request, pk=None):
         incident = self.get_object()
         events = incident.events.select_related("actor").all()

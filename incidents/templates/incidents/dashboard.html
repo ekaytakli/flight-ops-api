@@ -34,7 +34,7 @@
       <div class="sidebar-bottom"><div class="environment"><span class="status-dot"></span> Operasyon çalışma alanı</div><div class="profile"><span class="avatar" id="avatar"></span><div><strong id="profile-name"></strong><small id="profile-role"></small></div><button id="logout" class="icon-button" title="Çıkış yap" aria-label="Çıkış yap">↪</button></div></div>
     </aside>
     <main>
-      <header class="topbar"><div><span class="breadcrumb">Çalışma alanı</span><span class="slash">/</span><span id="breadcrumb-page">Incident kayıtları</span></div><div class="topbar-date" id="today"></div></header>
+      <header class="topbar"><div><span class="breadcrumb">Çalışma alanı</span><span class="slash">/</span><span id="breadcrumb-page">Incident kayıtları</span></div><div class="topbar-actions"><span class="topbar-date" id="today"></span><button id="change-password" class="button secondary">Parolamı değiştir</button></div></header>
       <div class="page-content">
         <div class="page-heading"><div><span class="eyebrow muted">UÇUŞ OPERASYONLARI</span><h1 id="page-title">Incident kayıtları</h1><p id="page-subtitle">Ekibinin iş akışını takip et, operasyonu kesintisiz sürdür.</p></div><div class="heading-actions"><button id="refresh" class="button secondary" title="Verileri yenile">↻ <span>Yenile</span></button><button id="new-incident" class="button primary" data-lead>＋ Yeni incident</button><button id="new-flight" class="button primary" data-lead hidden>＋ Yeni uçuş</button></div></div>
         <div id="load-error" class="error-banner" role="alert" hidden></div>
@@ -46,10 +46,18 @@
         </section>
         <section class="records-card" aria-labelledby="records-title">
           <div class="records-heading"><div><h2 id="records-title">Tüm incident kayıtları</h2><span id="record-count" class="record-count">Veriler yükleniyor…</span></div><span class="scope-note" id="scope-note">Ekip görünümü</span></div>
-          <div class="filters"><label class="search-field"><span aria-hidden="true">⌕</span><input type="search" id="search" aria-label="Kayıtlarda ara" placeholder="Uçuş, açıklama veya operatör ara…"></label><div class="select-filters" id="incident-filters"><select id="status-filter" aria-label="Duruma göre filtrele"><option value="">Tüm durumlar</option value="OPEN">Açık</option><option value="IN_PROGRESS">İşlemde</option><option value="RESOLVED">Çözüldü</option></select><select id="kind-filter" aria-label="Türe göre filtrele"><option value="">Tüm türler</option><option value="DELAY">Gecikme</option><option value="CANCELLATION">İptal</option></select></div></div>
+          <div class="filters">
+            <label class="search-field"><span aria-hidden="true">⌕</span><input type="search" id="search" aria-label="Kayıtlarda ara" placeholder="Uçuş, açıklama veya operatör ara…"></label>
+            <div class="select-filters" id="incident-filters">
+              <select id="status-filter" aria-label="Duruma göre filtrele"><option value="">Tüm durumlar</option><option value="OPEN">Açık</option><option value="IN_PROGRESS">İşlemde</option><option value="RESOLVED">Çözüldü</option></select>
+              <select id="kind-filter" aria-label="Türe göre filtrele"><option value="">Tüm türler</option><option value="DELAY">Gecikme</option><option value="CANCELLATION">İptal</option></select>
+              <select id="priority-filter" aria-label="Önceliğe göre filtrele"><option value="">Tüm öncelikler</option><option value="CRITICAL">Kritik</option><option value="HIGH">Yüksek</option><option value="NORMAL">Normal</option><option value="LOW">Düşük</option></select>
+            </div>
+            <select id="ordering" aria-label="Kayıtları sırala"></select>
+          </div>
           <div class="table-scroll"><table><thead id="table-head"></thead><tbody id="table-body"></tbody></table></div>
           <div id="empty-state" class="empty-state" hidden><span>◎</span><h3 id="empty-title">Henüz kayıt yok</h3><p id="empty-message">Yeni kayıtlar burada görünecek.</p></div>
-          <footer class="table-footer"><span id="table-summary">—</span><span>Uçuş operasyonları · Tek bir çalışma alanı</span></footer>
+          <footer class="table-footer"><span id="table-summary">—</span><div class="pagination"><label>Sayfa boyutu<select id="page-size"><option value="20">20</option><option value="50">50</option><option value="100">100</option></select></label><button id="previous-page" class="button secondary" aria-label="Önceki sayfa">←</button><span id="page-number">1 / 1</span><button id="next-page" class="button secondary" aria-label="Sonraki sayfa">→</button></div></footer>
         </section>
         <p class="page-footer">Her adım kayıt altında. Her çözüm birlikte.</p>
       </div>
@@ -58,6 +66,10 @@
 
   <dialog id="form-dialog" class="form-dialog"><div class="dialog-heading"><div><span class="eyebrow muted">YENİ KAYIT</span><h2 id="form-title"></h2></div><button type="button" class="icon-button close-dialog" aria-label="Pencereyi kapat">×</button></div><form id="record-form"><div id="form-fields" class="form-fields"></div><p id="form-error" class="form-error" role="alert" hidden></p><div class="dialog-actions"><button type="button" class="button secondary close-dialog">Vazgeç</button><button type="submit" class="button primary" id="form-submit">Oluştur</button></div></form></dialog>
   <dialog id="detail-dialog" class="detail-dialog"><div class="dialog-heading"><div><span class="eyebrow muted">INCIDENT DETAYI</span><h2 id="detail-title">Kayıt yükleniyor…</h2></div><button type="button" class="icon-button close-dialog" aria-label="Detayı kapat">×</button></div><div id="detail-content"></div></dialog>
+  <dialog id="password-dialog" class="form-dialog">
+    <div class="dialog-heading"><h2>Parolamı değiştir</h2><button type="button" class="icon-button close-dialog" aria-label="Pencereyi kapat">×</button></div>
+    <form id="password-form"><div class="password-fields"><label>Mevcut parola<input type="password" name="old_password" autocomplete="current-password" required></label><label>Yeni parola<input type="password" name="new_password" autocomplete="new-password" minlength="8" required></label><label>Yeni parola (tekrar)<input type="password" name="confirmation" autocomplete="new-password" minlength="8" required></label></div><p class="field-hint">En az 8 karakter içeren, yaygın olmayan bir parola seç. Değişiklikten sonra tüm token oturumların kapanır; yeni parolanla tekrar giriş yapmalısın.</p><p id="password-error" class="form-error" role="alert" hidden></p><div class="dialog-actions"><button type="button" class="button secondary close-dialog">Vazgeç</button><button type="submit" class="button primary">Parolayı kaydet</button></div></form>
+  </dialog>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 </body>
 </html>

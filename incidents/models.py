@@ -39,6 +39,12 @@ class Flight(models.Model):
 
 
 class Incident(models.Model):
+    class Priority(models.TextChoices):
+        LOW = "LOW", "Low"
+        NORMAL = "NORMAL", "Normal"
+        HIGH = "HIGH", "High"
+        CRITICAL = "CRITICAL", "Critical"
+
     class Kind(models.TextChoices):
         DELAY = "DELAY", "Delay"
         CANCELLATION = "CANCELLATION", "Cancellation"
@@ -51,6 +57,7 @@ class Incident(models.Model):
     flight = models.ForeignKey(Flight, on_delete=models.PROTECT, related_name="incidents")
     kind = models.CharField(max_length=16, choices=Kind.choices)
     description = models.TextField()
+    priority = models.CharField(max_length=8, choices=Priority.choices, default=Priority.NORMAL, db_index=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
@@ -86,6 +93,7 @@ class IncidentEvent(models.Model):
         ASSIGNED = "ASSIGNED", "Assigned"
         STARTED = "STARTED", "Started"
         RESOLVED = "RESOLVED", "Resolved"
+        PRIORITY_CHANGED = "PRIORITY_CHANGED", "Priority changed"
 
     incident = models.ForeignKey(Incident, on_delete=models.CASCADE, related_name="events")
     event_type = models.CharField(max_length=16, choices=Type.choices)

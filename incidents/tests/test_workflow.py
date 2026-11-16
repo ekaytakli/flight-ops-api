@@ -251,7 +251,7 @@ class IncidentWorkflowTests(APITestCase):
         self.assertEqual(events["content"]["application/json"]["schema"]["items"]["$ref"],
                          "#/components/schemas/IncidentEvent")
         self.assertEqual({p["name"] for p in paths["/api/incidents/"]["get"]["parameters"]},
-                         {"status", "kind"})
+                         {"status", "kind", "priority", "search", "ordering", "page", "page_size"})
 
     def test_operator_cannot_read_incident_assigned_to_someone_else(self):
         incident_id = self.create_incident()
@@ -265,7 +265,7 @@ class IncidentWorkflowTests(APITestCase):
         self.client.force_authenticate(self.other_operator)
         list_response = self.client.get("/api/incidents/")
         self.assertEqual(list_response.status_code, 200)
-        self.assertEqual(list_response.data, [])
+        self.assertEqual(list_response.data["results"], [])
         self.assertEqual(self.client.get(f"/api/incidents/{incident_id}/").status_code, 404)
         self.assertEqual(self.client.get(f"/api/incidents/{incident_id}/events/").status_code, 404)
 

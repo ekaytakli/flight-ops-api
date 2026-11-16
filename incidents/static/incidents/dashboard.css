@@ -6,3 +6,35 @@
 @media(max-width:550px){.login-screen{grid-template-columns:1fr}.login-story{padding:25px 28px}.login-story .brand{font-size:22px}.login-message{padding:35px 0 10px}.login-message h1{font-size:34px;margin-top:15px;letter-spacing:-1px}.login-message h1 br{display:none}.login-message p{margin-top:15px}.login-message .route-art,.login-footer{display:none}.login-panel{padding:35px 28px}.login-form h2{font-size:28px}.page-content{padding:24px 14px}.topbar{padding:0 18px;height:60px}.page-heading p{max-width:270px}.stat-card{padding:14px}.stat-card small{font-size:12px}.stat-card strong{font-size:30px}.stats{gap:9px}.records-heading{padding:18px}.records-heading h2{font-size:16px}.select-filters{gap:7px}.select-filters select{min-width:0;font-size:14px}.table-footer{padding-inline:18px}.form-fields{grid-template-columns:1fr}.full-width{grid-column:auto}dialog{padding:20px}.detail-grid{gap:15px;grid-template-columns:minmax(0,1fr)}.event-heading{flex-direction:column;gap:5px}.detail-actions form{align-items:stretch;flex-direction:column}.detail-actions form button{align-self:flex-end}.toast{width:calc(100vw - 100px);max-width:calc(100vw - 100px)}.heading-actions .secondary{padding-inline:12px}}
 @media(max-width:380px){.select-filters{flex-direction:column}.select-filters select{width:100%}.heading-actions .button{padding-inline:10px}.stats{grid-template-columns:minmax(0,1fr)}.login-panel{padding-inline:20px}.login-story{padding-inline:20px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+
+.topbar { flex-wrap: wrap; gap: 14px; padding-block: 14px; }
+.topbar-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; }
+.topbar-actions .button { font-size: 14px; min-height: 40px; }
+.filters { align-items: flex-start; }
+.filters > select { max-width: 100%; font-size: 14px; min-height: 44px; }
+.select-filters select { flex: 1 1 150px; min-width: min(100%, 150px); }
+.priority { display: inline-block; padding: 3px 8px; border-radius: 5px; font-size: 13px; font-weight: 600; }
+.priority.LOW { color: #647b85; background: #eef3f5; }
+.priority.NORMAL { color: #37776c; background: #edf6f1; }
+.priority.HIGH { color: #a16b1b; background: #fff1d9; }
+.priority.CRITICAL { color: #a5413b; background: #fde9e7; }
+.pagination { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 14px; }
+.pagination label { flex-direction: row; align-items: center; font-size: 13px; font-weight: 400; }
+.pagination select { min-height: 42px; padding: 7px; width: 72px; font-size: 14px; }
+.pagination .button { min-width: 44px; min-height: 42px; padding: 6px 10px; }
+.pagination button:disabled { cursor: not-allowed; }
+.password-fields { display: grid; gap: 18px; margin-bottom: 18px; }
+.form-fields input { width: 100%; }
+.detail-actions .priority { align-self: flex-start; }
+@media (max-width: 800px) {
+  .topbar { align-items: flex-start; }
+  .pagination { width: 100%; }
+  .filters > select { width: 100%; }
+}
+@media (max-width: 550px) {
+  .topbar { flex-direction: column; }
+  .topbar-actions { width: 100%; }
+  .topbar-actions .button { width: 100%; }
+  .pagination label { flex-basis: 100%; }
+  .select-filters { width: 100%; }
+}

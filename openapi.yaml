@@ -5,6 +5,16 @@ info:
   description: Denetlenebilir olay geçmişi ve role göre erişim sunan uçuş incident
     iş akışları.
 paths:
+  /api/auth/logout/:
+    post:
+      operationId: auth_logout_create
+      tags:
+      - auth
+      security:
+      - tokenAuth: []
+      responses:
+        '204':
+          description: No response body
   /api/auth/me/:
     get:
       operationId: auth_me_retrieve
@@ -19,6 +29,28 @@ paths:
               schema:
                 $ref: '#/components/schemas/CurrentUser'
           description: ''
+  /api/auth/password/:
+    post:
+      operationId: auth_password_create
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordChange'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PasswordChange'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PasswordChange'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '204':
+          description: No response body
   /api/auth/token/:
     post:
       operationId: auth_token_create
@@ -46,6 +78,31 @@ paths:
   /api/flights/:
     get:
       operationId: flights_list
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
       tags:
       - flights
       security:
@@ -55,9 +112,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Flight'
+                $ref: '#/components/schemas/PaginatedFlightList'
           description: ''
     post:
       operationId: flights_create
@@ -195,6 +250,39 @@ paths:
           enum:
           - CANCELLATION
           - DELAY
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: query
+        name: priority
+        schema:
+          type: string
+          enum:
+          - CRITICAL
+          - HIGH
+          - LOW
+          - NORMAL
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
       - in: query
         name: status
         schema:
@@ -212,9 +300,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Incident'
+                $ref: '#/components/schemas/PaginatedIncidentList'
           description: ''
     post:
       operationId: incidents_create
@@ -318,6 +404,39 @@ paths:
                 items:
                   $ref: '#/components/schemas/IncidentEvent'
           description: ''
+  /api/incidents/{id}/priority/:
+    post:
+      operationId: incidents_priority_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this incident.
+        required: true
+      tags:
+      - incidents
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Priority'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Priority'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Priority'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Incident'
+          description: ''
   /api/incidents/{id}/resolve/:
     post:
       operationId: incidents_resolve_create
@@ -371,6 +490,20 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Incident'
+          description: ''
+  /api/incidents/summary/:
+    get:
+      operationId: incidents_summary_retrieve
+      tags:
+      - incidents
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncidentSummary'
           description: ''
   /api/operators/:
     get:
@@ -439,12 +572,14 @@ components:
       - ASSIGNED
       - STARTED
       - RESOLVED
+      - PRIORITY_CHANGED
       type: string
       description: |-
         * `CREATED` - Created
         * `ASSIGNED` - Assigned
         * `STARTED` - Started
         * `RESOLVED` - Resolved
+        * `PRIORITY_CHANGED` - Priority changed
     Flight:
       type: object
       properties:
@@ -491,6 +626,12 @@ components:
           $ref: '#/components/schemas/KindEnum'
         description:
           type: string
+        priority:
+          $ref: '#/components/schemas/PriorityEnum'
+        waiting_seconds:
+          type: integer
+          minimum: 0
+          readOnly: true
         created_by:
           type: string
           readOnly: true
@@ -525,6 +666,7 @@ components:
       - resolution_notes
       - status
       - updated_at
+      - waiting_seconds
     IncidentEvent:
       type: object
       properties:
@@ -568,6 +710,26 @@ components:
         * `OPEN` - Open
         * `IN_PROGRESS` - In progress
         * `RESOLVED` - Resolved
+    IncidentSummary:
+      type: object
+      properties:
+        total:
+          type: integer
+          readOnly: true
+        open:
+          type: integer
+          readOnly: true
+        in_progress:
+          type: integer
+          readOnly: true
+        resolved:
+          type: integer
+          readOnly: true
+      required:
+      - in_progress
+      - open
+      - resolved
+      - total
     KindEnum:
       enum:
       - DELAY
@@ -601,6 +763,64 @@ components:
       - id
       - last_name
       - username
+    PaginatedFlightList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Flight'
+    PaginatedIncidentList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Incident'
+    PasswordChange:
+      type: object
+      properties:
+        old_password:
+          type: string
+          writeOnly: true
+        new_password:
+          type: string
+          writeOnly: true
+      required:
+      - new_password
+      - old_password
     PatchedFlight:
       type: object
       properties:
@@ -624,6 +844,25 @@ components:
         scheduled_arrival:
           type: string
           format: date-time
+    Priority:
+      type: object
+      properties:
+        priority:
+          $ref: '#/components/schemas/PriorityEnum'
+      required:
+      - priority
+    PriorityEnum:
+      enum:
+      - LOW
+      - NORMAL
+      - HIGH
+      - CRITICAL
+      type: string
+      description: |-
+        * `LOW` - Low
+        * `NORMAL` - Normal
+        * `HIGH` - High
+        * `CRITICAL` - Critical
     Resolution:
       type: object
       properties:

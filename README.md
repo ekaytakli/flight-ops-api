@@ -11,6 +11,9 @@ Uçuş gecikmelerini ve iptallerini takip etmek için PostgreSQL kullanan bir Dj
 - `Team Leads` ve `Operators` rolleri için Django grupları.
 - Token ile kimlik doğrulama, durum/tür filtreleri ve OpenAPI/Swagger dokümantasyonu.
 - Türkçe operasyon paneli: hesapla giriş, uçuş/incident oluşturma, operatör seçerek atama, başlatma, çözüm notuyla kapatma ve olay geçmişi.
+- Düşük, normal, yüksek ve kritik incident öncelikleri; öncelik değişikliklerinin olay geçmişinde tutulması.
+- Sunucu tarafında arama, sayfalama ve sıralama; bekleme süresi ve son işlem zamanı.
+- Panelden uçuş düzenleme, parola değiştirme ve sunucuda token iptal eden çıkış işlemi.
 
 ## Operasyon paneli
 
@@ -20,9 +23,14 @@ token kopyalamanız gerekmez. Demo hesapları aşağıdaki `create_demo_users` k
 
 - **Ekip sorumlusu:** Uçuşlar ekranından bir uçuş oluşturun. Incident kayıtları ekranından uçuşu seçip gecikme veya iptal kaydı açın. Kaydın **Detay** düğmesinden operatörü seçerek atayın, işi başlatın ve çözüm notuyla tamamlayın.
 - **Operatör:** Yalnızca size atanmış kayıtlar gösterilir. Detay ekranından işi başlatabilir, çözüm notuyla kapatabilir ve olay geçmişini inceleyebilirsiniz.
-- Liste üzerinde arama, durum ve tür filtreleri bulunur. **Yenile** düğmesi güncel kayıtları sunucudan getirir.
+- Liste üzerinde arama, durum, tür ve öncelik filtreleri bulunur. Önceliğe, kayıt/son işlem zamanına veya uçuşa göre sıralama yapılabilir. **Yenile** düğmesi güncel kayıtları sunucudan getirir.
+- Listeler 20, 50 veya 100 kayıtlık sayfalarla gösterilir. Özet kartları filtrelerden ve sayfadan bağımsız olarak kullanıcının erişebildiği tüm incident kayıtlarını sayar.
+- Uçuşlar ekranındaki **Düzenle** düğmesi uçuş bilgilerini günceller. Incident açarken uçuş araması ilk 20 eşleşmeyi getirir; eski uçuşlar numara veya havalimanıyla aranabilir.
+- Incident önceliği oluşturma sırasında seçilir; ekip sorumlusu açık veya işlemdeki kaydın detayından değiştirebilir. Çözülmüş kaydın önceliği değiştirilemez. Aynı önceliği yeniden kaydetmek ek olay oluşturmaz.
+- Bekleme süresi oluşturulmadan ilk başlatmaya kadar geçen süredir; açık kayıtlarda güncel zamana kadar hesaplanır, başlatıldıktan sonra sabit kalır. Son işlem zamanı `updated_at` alanıdır.
 - Tarih ve saatler cihazın yerel saat diliminde girilir/gösterilir; API'ye UTC olarak gönderilir.
-- Oturum token'ı sekmeye özel `sessionStorage` içinde tutulur. **Çıkış yap**, bu sekmedeki oturumu temizler; sunucudaki API token'ını iptal etmez.
+- Oturum token'ı sekmeye özel `sessionStorage` içinde tutulur. **Çıkış yap**, sunucudaki token'ı iptal edip yerel oturumu temizler. DRF kullanıcı başına tek token kullandığından aynı token ile açık diğer sekmeler de yeniden giriş yapmalıdır. Ağ hatasında sunucudaki iptal doğrulanamadığı için panel oturumu açık tutar ve hata gösterir.
+- Üst menüdeki **Parolamı değiştir**, mevcut parolayı ve Django parola kurallarını doğrular. Başarılı değişiklik parolayı güncelleyip kullanıcının token'ını aynı veritabanı işlemi içinde iptal eder. Yeni parolayla tekrar giriş gerekir.
 
 Panel için ek bir Node.js kurulumu veya frontend derleme adımı gerekmez. Django şablonları
 ve uygulamanın statik CSS/JavaScript dosyaları kullanılır. Mevcut Docker geliştirme
@@ -155,13 +163,40 @@ Geçmiş, her geçiş için işlemi yapan kullanıcıyı, olay zamanını, olay 
 | `POST` | `/api/incidents/{id}/assign/` | Ekip sorumlusu |
 | `POST` | `/api/incidents/{id}/start/` | Ekip sorumlusu veya atanan operatör |
 | `POST` | `/api/incidents/{id}/resolve/` | Ekip sorumlusu veya atanan operatör |
+| `POST` | `/api/incidents/{id}/priority/` | Ekip sorumlusu; `{"priority":"HIGH"}` ile öncelik değişikliği |
+| `GET` | `/api/incidents/summary/` | Ekip sorumlusu veya operatör; rol kapsamındaki tüm kayıtların durum sayıları |
 | `GET` | `/api/incidents/?status=OPEN&kind=CANCELLATION` | Ekip sorumlusu veya atanan operatör |
 | `POST` | `/api/auth/token/` | Önceden token gerekmez; kullanıcı adı ve parola ile token alınır |
 | `GET` | `/api/auth/me/` | Ekip sorumlusu veya operatör; mevcut kullanıcı ve rol bilgisi |
+| `POST` | `/api/auth/logout/` | Token ile giriş yapmış kullanıcı; token iptali, başarılı yanıt `204` |
+| `POST` | `/api/auth/password/` | Token ile giriş yapmış kullanıcı; `old_password`, `new_password` alanları, başarılı yanıt `204` |
 | `GET` | `/api/operators/` | Ekip sorumlusu; aktif operatörlerin kimlik ve ad bilgileri |
 | `GET` | `/api/schema/`, `/api/docs/` | OpenAPI şeması ve Swagger arayüzü |
 
 Operatörler incident oluşturamaz; liste uç noktası operatörler için salt okunurdur. Incident durumu, ataması ve çözüm notları genel güncelleme çağrılarıyla değiştirilemez.
+
+Uçuş düzenleme için `PATCH /api/flights/{id}/` veya `PUT /api/flights/{id}/` kullanılır;
+yalnızca ekip sorumluları yetkilidir. Mevcut zaman, havalimanı ve benzersizlik doğrulamaları uygulanır.
+
+### Sayfalama ve sıralama
+
+Uçuş ve incident listeleri artık düz dizi yerine `count`, `next`, `previous`, `results`
+alanlarını döndürür. API istemcileri kayıtları `results` içinden okumalıdır.
+Varsayılan sayfa boyutu 20, en yüksek değer 100'dür. Operatör listesi ve olay geçmişi düz dizi olarak kalır.
+
+```text
+/api/incidents/?page=1&page_size=20&ordering=-priority&priority=HIGH&status=OPEN&search=TK
+/api/flights/?page=1&page_size=20&ordering=scheduled_departure&search=IST
+```
+
+Incident sıralama alanları: `created_at`, `updated_at`, `priority`, `flight__flight_number`, `id`.
+Uçuş sıralama alanları: `scheduled_departure`, `scheduled_arrival`, `flight_number`, `id`.
+Başına `-` eklemek azalan sıralama sağlar. Öncelik sırası `LOW < NORMAL < HIGH < CRITICAL` şeklindedir;
+aynı değere sahip kayıtlarda kimlik alanı kararlı bir sıralama sağlar. En uzun bekleyen açık kayıtları
+görmek için `status=OPEN&ordering=created_at` kullanın.
+
+Mevcut incident kayıtları `0003` migration'ı ile `NORMAL` öncelik kazanır. `waiting_seconds`
+salt okunurdur; süre, mevcut `STARTED` olayından hesaplandığı için ek zaman alanı gerektirmez.
 
 ## Docker olmadan yerel çalıştırma
 
@@ -196,6 +231,12 @@ docker compose exec api python manage.py spectacular --validate --fail-on-warn -
 ```
 
 Testler; token ile doğrulanan iptal akışını, role göre erişimi, reddedilen isteklerde tüm incident ve olay alanlarının korunmasını ve olay geçmişi yazılamadığında işlemin geri alınmasını kapsar. SQLite, PostgreSQL'in satır kilitleme davranışını doğrulamaz; PostgreSQL üzerinde doğrulama için Compose veya CI testlerini kullanın.
+
+PostgreSQL eşzamanlılık testleri iki ayrı bağlantının aynı kaydı başlatmasını/çözmesini,
+yalnızca tek geçiş ve olay yazılmasını ve satır kilidi beklerken değişen operatör atamasının
+kilit alındıktan sonra yeniden kontrol edilmesini sınar. Bu üç test SQLite üzerinde atlanır.
+Parola, sunucuda çıkış, öncelik/audit atomikliği, bekleme süresi, sayfalama/sıralama ve uçuş
+düzenleme testleri her iki veritabanında da çalışır.
 
 API şema açıklamalarını değiştirdikten sonra projedeki sözleşmeyi yeniden üretin:
 
