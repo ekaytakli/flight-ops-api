@@ -239,6 +239,12 @@ paths:
       responses:
         '204':
           description: No response body
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlightDeletionConflict'
+          description: ''
   /api/incidents/:
     get:
       operationId: incidents_list
@@ -610,6 +616,14 @@ components:
       - id
       - scheduled_arrival
       - scheduled_departure
+    FlightDeletionConflict:
+      type: object
+      properties:
+        detail:
+          type: string
+          readOnly: true
+      required:
+      - detail
     Incident:
       type: object
       properties:

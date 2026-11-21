@@ -15,6 +15,8 @@ def assign_incident(*, incident_id, actor, operator):
         raise ValidationError({"status": "Only open incidents can be assigned."})
     if not is_operator(operator) or not operator.is_active:
         raise ValidationError({"operator_id": "Select an active user in the Operators group."})
+    if incident.assigned_to_id == operator.pk:
+        return incident
 
     previous_operator = incident.assigned_to
     incident.assigned_to = operator

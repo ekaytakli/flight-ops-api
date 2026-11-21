@@ -157,6 +157,7 @@ Geçmiş, her geçiş için işlemi yapan kullanıcıyı, olay zamanını, olay 
 | Yöntem | Uç nokta | Erişim |
 | --- | --- | --- |
 | `POST`, `GET` | `/api/flights/` | Ekip sorumlusu |
+| `GET`, `PUT`, `PATCH`, `DELETE` | `/api/flights/{id}/` | Ekip sorumlusu; incident bağlı uçuşlar silinemez (`409`) |
 | `GET`, `POST` | `/api/incidents/` | Ekip sorumlusu; operatörler yalnızca kendilerine atanmış kayıtları listeler, yalnızca ekip sorumluları kayıt oluşturabilir |
 | `GET` | `/api/incidents/{id}/` | Ekip sorumlusu veya atanan operatör |
 | `GET` | `/api/incidents/{id}/events/` | Ekip sorumlusu veya atanan operatör |
@@ -177,6 +178,15 @@ Operatörler incident oluşturamaz; liste uç noktası operatörler için salt o
 
 Uçuş düzenleme için `PATCH /api/flights/{id}/` veya `PUT /api/flights/{id}/` kullanılır;
 yalnızca ekip sorumluları yetkilidir. Mevcut zaman, havalimanı ve benzersizlik doğrulamaları uygulanır.
+
+`DELETE /api/flights/{id}/`, incident kaydı olmayan uçuşları siler ve `204` döndürür.
+Herhangi bir durumda incident kaydı bağlıysa `409` ve
+`{"detail":"Flights with incidents cannot be deleted."}` döner; uçuş, incident ve olay
+geçmişi korunur. Bulunamayan uçuş için `404` döner.
+
+Açık bir incident aynı operatöre tekrar atandığında istek başarılı olur; ek `ASSIGNED`
+olayı yazılmaz ve `updated_at` değişmez. İşlemdeki veya çözülmüş kayıtlarda atama
+isteği, operatör aynı olsa da reddedilir.
 
 ### Sayfalama ve sıralama
 

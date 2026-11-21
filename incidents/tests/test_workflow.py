@@ -241,6 +241,10 @@ class IncidentWorkflowTests(APITestCase):
         schema = SchemaGenerator().get_schema(request=None, public=True)
         validate_schema(schema)
         paths = schema["paths"]
+        deletion = paths["/api/flights/{id}/"]["delete"]["responses"]
+        self.assertIn("204", deletion)
+        self.assertEqual(deletion["409"]["content"]["application/json"]["schema"]["$ref"],
+                         "#/components/schemas/FlightDeletionConflict")
         self.assertFalse(paths["/api/auth/token/"]["post"].get("security"))
         for action, serializer in (("assign", "Assignment"), ("resolve", "Resolution")):
             request = paths[f"/api/incidents/{{id}}/{action}/"]["post"]["requestBody"]

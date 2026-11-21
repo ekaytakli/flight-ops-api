@@ -79,6 +79,21 @@ class ImprovementTests(APITestCase):
             self.assertEqual(self.client.get(path).data["waiting_seconds"], waiting)
         self.assertIn("updated_at", response.data)
 
+    def test_repeated_assignment_preserves_timestamp_and_audit_history(self):
+        incident = self.incident()
+        self.client.force_authenticate(self.lead)
+        path = f"/api/incidents/{incident.pk}/assign/"
+        payload = {"operator_id": self.operator.pk}
+        self.assertEqual(self.client.post(path, payload).status_code, 200)
+        before = self.snapshot()
+        self.assertEqual(self.client.post(path, payload).status_code, 200)
+        self.assertEqual(self.snapshot(), before)
+        self.assertEqual(incident.events.filter(event_type="ASSIGNED").count(), 1)
+        start_incident(incident_id=incident.pk, actor=self.operator)
+        before = self.snapshot()
+        self.assertEqual(self.client.post(path, payload).status_code, 400)
+        self.assertEqual(self.snapshot(), before)
+
     def test_pagination_semantic_priority_order_and_scoped_summary(self):
         records = {value: self.incident(value) for value in Incident.Priority.values}
         self.client.force_authenticate(self.lead)

@@ -1,8 +1,9 @@
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.db.models.deletion import ProtectedError
 from django.db.models import Case, Count, IntegerField, OuterRef, Q, Subquery, Value, When
-from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
-from rest_framework import mixins, viewsets
+from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view, inline_serializer
+from rest_framework import mixins, serializers, viewsets
 from rest_framework.authtoken.models import Token
 from rest_framework.filters import SearchFilter
 from rest_framework.decorators import action
@@ -12,6 +13,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import Flight, Incident, IncidentEvent
+from .exceptions import FlightDeletionConflict
 from .filters import IncidentOrderingFilter, StableOrderingFilter
 from .pagination import OperationsPagination
 from .permissions import IsTeamLead, IsTeamLeadOrAssignedOperator, IsTeamLeadOrOperator
@@ -71,6 +73,15 @@ class PasswordChangeView(APIView):
         return Response(status=204)
 
 
+@extend_schema_view(
+    destroy=extend_schema(responses={
+        204: None,
+        409: inline_serializer(
+            name="FlightDeletionConflict",
+            fields={"detail": serializers.CharField(read_only=True)},
+        ),
+    }),
+)
 class FlightViewSet(viewsets.ModelViewSet):
     queryset = Flight.objects.all()
     serializer_class = FlightSerializer
@@ -80,6 +91,12 @@ class FlightViewSet(viewsets.ModelViewSet):
     search_fields = ["flight_number", "departure_airport_code", "arrival_airport_code"]
     ordering_fields = ["scheduled_departure", "scheduled_arrival", "flight_number", "id"]
     ordering = ["scheduled_departure", "id"]
+
+    def perform_destroy(self, instance):
+        try:
+            instance.delete()
+        except ProtectedError as error:
+            raise FlightDeletionConflict() from error
 
 
 @extend_schema_view(
