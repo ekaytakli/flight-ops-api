@@ -73,6 +73,46 @@ docker compose exec api python manage.py create_demo_users --team-lead-password 
 
 Komut, `Team Leads` grubunda `teamlead`, `Operators` grubunda `operator` kullanıcısını oluşturur ve API çağrılarında kullanılacak veritabanı kimliklerini yazdırır. Kullanılabilir parolası olan mevcut hesapların üzerine yazmayı reddeder.
 
+## Örnek uçuş verileri
+
+20 havalimanını ve 100 farklı güzergâhı kapsayan 100 sentetik uçuş eklemek için:
+
+```shell
+docker compose exec api python manage.py create_demo_flights
+```
+
+Komut mevcut uçuşları değiştirmez. Başlangıç tarihi varsayılan olarak yarındır;
+uçuşlar yaklaşık dokuz güne yayılır. Bunlar gerçek sefer veya canlı arıza verileri değildir.
+Aynı başlangıç tarihi ve sayıyla tekrar çalıştırmak mükerrer kayıt oluşturmaz:
+
+```shell
+docker compose exec api python manage.py create_demo_flights --count 100 --start-date 2026-12-01
+```
+
+### Teknik arıza senaryolarıyla 200 uçuş
+
+Mevcut uçuşları 200'e tamamlamak ve uçuşların %10'unda teknik incident bulunmasını
+sağlamak için (önce demo kullanıcıları oluşturun):
+
+```shell
+docker compose exec api python manage.py create_demo_operations
+```
+
+Komut mevcut uçuşları, incident'ları ve olay geçmişini korur. Mevcut 103 uçuş ve
+3 çözülmüş incident bulunan örnekte 97 uçuş ve 17 incident ekler: toplam 200 uçuş,
+20 incident bulunan uçuş; 8 açık, 6 işlemde, 6 çözülmüş kayıt. Açık kayıtların bir
+kısmı atama bekler, bir kısmı operatöre atanmıştır. Gecikme ve iptaller; motor,
+hidrolik, fren, elektrik, APU, kabin sistemleri gibi farklı teknik bildirimler ve
+öncelikler içerir. Çözülmüş kayıtlarda operasyon çözüm notu bulunur; iptal
+operasyonunun kapanması, uçağın bakımının tamamlandığı anlamına gelmez.
+
+Atama, başlatma ve kapatma normal iş akışı servisleriyle yapılır. Yalnızca yeni demo
+kayıtlarının zamanları tutarlı bir geçmiş oluşturacak şekilde ayarlanır. Aynı hedefle
+tekrar çalıştırmak kayıt eklemez veya mevcut durumları sıfırlamaz. Mevcut veri hedefi
+aşıyorsa komut veri silmek yerine durur. `--flight-count` ve `--incident-percent`
+ile hedef değiştirilebilir. Bu veriler simülasyondur; %10 oranı gerçek havacılık
+arıza istatistiği veya otomatik arıza tespiti iddiası değildir.
+
 ## Kimlik doğrulama
 
 API, Django REST Framework token kimlik doğrulamasını kullanır. Kullanıcı adı ve parola ile token alın:

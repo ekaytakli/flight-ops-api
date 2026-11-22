@@ -30,6 +30,7 @@ class DashboardTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'lang="tr"')
         self.assertContains(response, "incidents/dashboard.js")
+        self.assertNotContains(response, 'class="route-art"')
         self.assertNotContains(response, self.lead.username)
         self.assertNotContains(response, self.flight.flight_number)
 
