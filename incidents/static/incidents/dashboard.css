@@ -24,6 +24,11 @@
 .pagination .button { min-width: 44px; min-height: 42px; padding: 6px 10px; }
 .pagination button:disabled { cursor: not-allowed; }
 .password-fields { display: grid; gap: 18px; margin-bottom: 18px; }
+.login-demo { margin-bottom: 24px; padding: 16px; border: 1px solid #dce8e2; border-radius: 10px; background: #f0f7f3; font-size: 14px; }
+.login-demo > strong { color: var(--green); }
+.login-demo p { margin-top: 10px; line-height: 1.6; }
+.login-demo code { overflow-wrap: anywhere; }
+.login-demo .login-demo-hint { color: var(--muted); font-size: 13px; }
 .form-fields input { width: 100%; }
 .detail-actions .priority { align-self: flex-start; }
 @media (max-width: 800px) {
