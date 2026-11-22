@@ -60,6 +60,7 @@
     }
     const data = await response.json().catch(() => null);
     if (!response.ok) {
+      if (response.status === 429) throw new Error("Çok fazla giriş denemesi yapıldı. Bir dakika bekleyip tekrar dene.");
       if (response.status === 401 && authenticated) {
         logout();
         throw new Error("Oturumun sona erdi. Yeniden giriş yap.");

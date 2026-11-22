@@ -2,6 +2,7 @@ from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib.auth.models import Group, User
+from django.core.cache import cache
 from django.utils import timezone
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APITestCase
@@ -11,6 +12,9 @@ from incidents.services import assign_incident, change_priority, create_incident
 
 
 class ImprovementTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+
     @classmethod
     def setUpTestData(cls):
         cls.lead = User.objects.create_user(username="lead-new", password="Current-Password-2026!")

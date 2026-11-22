@@ -77,6 +77,12 @@ Komut, `Team Leads` grubunda `teamlead`, `Operators` grubunda `operator` kullan�
 
 API, Django REST Framework token kimlik doğrulamasını kullanır. Kullanıcı adı ve parola ile token alın:
 
+Token alma uç noktası IP başına dakikada 5 istekle sınırlıdır; başarılı ve başarısız
+denemeler bu sınıra dahildir. Sınır aşılınca `429` ve `Retry-After` başlığı döner.
+Geliştirmede sayaç süreç belleğinde, üretimde ortak Redis önbelleğinde tutulur.
+DRF hız sınırlaması eşzamanlı isteklerde kesin bir üst sınır sağlamaz; internete açık
+dağıtımlarda proxy katmanında da giriş uç noktasına istek sınırı uygulayın.
+
 ```shell
 curl -X POST http://localhost:8000/api/auth/token/ \
   -H "Content-Type: application/json" \
@@ -220,6 +226,48 @@ python manage.py migrate
 python manage.py create_demo_users --team-lead-password "Lead-Local-2026!" --operator-password "Operator-Local-2026!"
 python manage.py runserver
 ```
+
+## Üretim dağıtımı
+
+Docker Compose dosyası yerel geliştirme içindir ve `runserver` kullanmaya devam eder.
+Docker imajının varsayılan komutu statik dosyaları toplar, ardından iki worker ile Gunicorn başlatır ve
+`config.production` ayarlarını kullanır. Bu ayarlar `DEBUG=False` uygular;
+50 karakterden kısa/zayıf gizli anahtar, boş veya `*` host listesi ve eksik
+`REDIS_URL` ile uygulama başlamaz.
+
+Üretim ortamında `DJANGO_SECRET_KEY`, `DJANGO_ALLOWED_HOSTS`, `POSTGRES_*` ve
+`REDIS_URL` değerlerini dağıtımın gizli ortam değişkenlerinden sağlayın. PostgreSQL
+ve Redis'i yalnızca uygulamanın erişebileceği ağda tutun. Ortak Redis tüm Gunicorn
+worker'larının giriş denemelerini aynı sayaç üzerinden sınırlamasını sağlar.
+
+HTTPS sonlandıran güvenilir proxy arkasında `DJANGO_TRUST_PROXY=true` ve gerçek
+proxy sayısına uygun `DJANGO_NUM_PROXIES` kullanın. Proxy gelen istemci
+`X-Forwarded-Proto` ve `X-Forwarded-For` başlıklarını temizleyip kendisi yazmalıdır.
+Varsayılan ayarlar forwarded başlıklara güvenmez. Üretim HTTPS'e yönlendirir,
+güvenli oturum/CSRF çerezleri ve alt alan adlarını kapsayan bir yıllık HSTS uygular.
+Uygulama alan adının alt alan adları da HTTPS kullanmalıdır. `preload` işareti
+açıktır; bu işaret alan adını tarayıcıların preload listesine kendiliğinden eklemez.
+
+İmajı oluşturduktan sonra aynı imajla dağıtım öncesi tek seferlik görevler olarak çalıştırın
+(komutlara üretim ortam değişkenlerini `--env-file` ile verin):
+
+```shell
+docker build -t flight-ops-api .
+docker run --rm --env-file .env.production flight-ops-api python manage.py check --deploy --fail-level WARNING --settings=config.production
+docker run --rm --env-file .env.production flight-ops-api python manage.py migrate --noinput --settings=config.production
+```
+
+Statik dosyalar her container'ın başlangıcında `collectstatic` ile hazırlanır.
+Uygulamayı HTTPS proxy'nin erişebileceği şekilde başlatın:
+
+```shell
+docker run --env-file .env.production -p 127.0.0.1:8000:8000 flight-ops-api
+```
+
+WhiteNoise, `STATIC_ROOT` altına toplanan sürümlenmiş ve sıkıştırılmış statik dosyaları
+sunar. `.env.production` dosyası Git'e eklenmez. Django admin'de incident ve olay
+geçmişi yalnızca görüntülenebilir; oluşturma, atama, durum/öncelik değişikliği için
+operasyon panelini veya API'yi kullanın. Incident silme ve toplu silme kapalıdır.
 
 ## Testler
 

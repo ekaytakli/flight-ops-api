@@ -15,9 +15,22 @@ class IncidentEventInline(admin.TabularInline):
     can_delete = False
     readonly_fields = ("event_type", "actor", "previous_status", "new_status", "details", "created_at")
 
+    def has_add_permission(self, request, obj=None):
+        return False
+
 
 @admin.register(Incident)
 class IncidentAdmin(admin.ModelAdmin):
     list_display = ("id", "flight", "kind", "status", "created_by", "assigned_to", "created_at")
     list_filter = ("kind", "status")
     inlines = [IncidentEventInline]
+    readonly_fields = tuple(field.name for field in Incident._meta.fields)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

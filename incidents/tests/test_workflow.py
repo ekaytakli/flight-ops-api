@@ -2,6 +2,7 @@ from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib.auth.models import Group, User
+from django.core.cache import cache
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 from rest_framework.test import APITestCase
@@ -19,6 +20,7 @@ class IncidentWorkflowTests(APITestCase):
         )
 
     def setUp(self):
+        cache.clear()
         self.team_leads = Group.objects.get(name=TEAM_LEAD_GROUP)
         self.operators = Group.objects.get(name=OPERATOR_GROUP)
         self.lead = User.objects.create_user(username="lead", password="test-password")

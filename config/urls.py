@@ -7,11 +7,12 @@ from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.routers import DefaultRouter
 
 from incidents.views import CurrentUserView, FlightViewSet, IncidentViewSet, OperatorListView, LogoutView, PasswordChangeView
+from incidents.throttles import LoginRateThrottle
 
 
 @extend_schema(auth=[])
 class PublicAuthTokenView(ObtainAuthToken):
-    pass
+    throttle_classes = [LoginRateThrottle]
 
 router = DefaultRouter()
 router.register("flights", FlightViewSet, basename="flight")

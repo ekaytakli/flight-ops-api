@@ -1,6 +1,11 @@
 .venv/
+.runtime/
+staticfiles/
 venv/
 .env
+.env.*
+!.env.example
+.azure/
 .git/
 .idea/
 .vscode/
