@@ -75,6 +75,21 @@ Komut, `Team Leads` grubunda `teamlead`, `Operators` grubunda `operator` kullan�
 
 ## Örnek uçuş verileri
 
+Yerel demo ortamında operatörler `operator`, `operator2`, `operator3`, `operator4` ve
+`operator5` hesaplarıdır. Eklenen dört hesap, oluşturuldukları sırada `operator`
+hesabının parolasını kullanır. Açık bir arızanın detayındaki operatör listesinden
+Ctrl / ⌘ ile en fazla iki kişi birlikte seçilebilir. İki operatör de kaydı görür,
+başlatabilir ve çözebilir. API atama isteği `{"operator_ids": [2, 3]}` kabul eder;
+eski `{"operator_id": 2}` biçimi tek operatör atamaya devam eder.
+Yanıttaki `assigned_operators` tüm atanan kullanıcı adlarını içerir;
+`assigned_to` ilk operatörü içererek mevcut istemcilerle uyumu korur.
+
+İlk üç eski test arızasını değiştirmek için kullanılan tek seferlik
+`refresh_demo_operations` komutu, yalnızca beklenen başlangıç demo verisini kabul
+eder; üç test arızasını silip üç teknik senaryo ekler, süreleri çeşitlendirir ve
+beş operatör arasında ortak atamalar yapar. Toplam uçuş ve arıza sayıları korunur;
+tekrar çalıştırıldığında zamanları veya kayıtları yeniden değiştirmez.
+
 20 havalimanını ve 100 farklı güzergâhı kapsayan 100 sentetik uçuş eklemek için:
 
 ```shell

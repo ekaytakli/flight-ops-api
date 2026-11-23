@@ -53,6 +53,13 @@ class FlightSerializer(serializers.ModelSerializer):
 
 class IncidentSerializer(serializers.ModelSerializer):
     waiting_seconds = serializers.SerializerMethodField()
+    assigned_operators = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.ListField(child=serializers.CharField()))
+    def get_assigned_operators(self, instance):
+        return ([instance.assigned_to.username] if instance.assigned_to_id else []) + [
+            user.username for user in instance.supporting_operators.all()
+        ]
 
     @extend_schema_field(serializers.IntegerField(min_value=0))
     def get_waiting_seconds(self, instance):
@@ -84,6 +91,7 @@ class IncidentSerializer(serializers.ModelSerializer):
             "waiting_seconds",
             "created_by",
             "assigned_to",
+            "assigned_operators",
             "status",
             "resolution_notes",
             "created_at",
@@ -102,12 +110,27 @@ class IncidentSerializer(serializers.ModelSerializer):
 
 class AssignmentSerializer(serializers.Serializer):
     operator_id = serializers.PrimaryKeyRelatedField(
+        required=False,
         source="operator",
         queryset=User.objects.filter(
             groups__name="Operators",
             is_active=True,
         ).distinct(),
     )
+    operator_ids = serializers.ListField(
+        source="operators", required=False, min_length=1, max_length=2,
+        child=serializers.PrimaryKeyRelatedField(
+            queryset=User.objects.filter(groups__name="Operators", is_active=True).distinct(),
+        ),
+    )
+
+    def validate(self, attrs):
+        if ("operator" in attrs) == ("operators" in attrs):
+            raise serializers.ValidationError("Provide operator_id or operator_ids.")
+        selected = attrs.get("operators", [attrs.get("operator")])
+        if not 1 <= len(selected) <= 2 or len({user.pk for user in selected}) != len(selected):
+            raise serializers.ValidationError({"operator_ids": "Select one or two distinct operators."})
+        return attrs
 
 
 class ResolutionSerializer(serializers.Serializer):

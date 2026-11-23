@@ -70,6 +70,9 @@ class Incident(models.Model):
         blank=True,
         related_name="assigned_incidents",
     )
+    supporting_operators = models.ManyToManyField(
+        settings.AUTH_USER_MODEL, blank=True, related_name="supported_incidents",
+    )
     status = models.CharField(
         max_length=16,
         choices=Status.choices,
@@ -85,6 +88,9 @@ class Incident(models.Model):
 
     def __str__(self):
         return f"{self.get_kind_display()} on {self.flight}"
+
+    def has_operator(self, user):
+        return self.assigned_to_id == user.pk or self.supporting_operators.filter(pk=user.pk).exists()
 
 
 class IncidentEvent(models.Model):

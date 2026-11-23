@@ -7,20 +7,27 @@ from .roles import is_operator, is_team_lead
 
 
 @transaction.atomic
-def assign_incident(*, incident_id, actor, operator):
+def assign_incident(*, incident_id, actor, operator=None, operators=None):
     incident = Incident.objects.select_for_update().get(pk=incident_id)
     if not is_team_lead(actor):
         raise PermissionDenied("Only team leads can assign incidents.")
     if incident.status != Incident.Status.OPEN:
         raise ValidationError({"status": "Only open incidents can be assigned."})
-    if not is_operator(operator) or not operator.is_active:
+    selected = list(operators) if operators is not None else [operator]
+    if not 1 <= len(selected) <= 2 or any(user is None for user in selected):
+        raise ValidationError({"operator_ids": "Select one or two operators."})
+    if len({user.pk for user in selected}) != len(selected):
+        raise ValidationError({"operator_ids": "Select distinct operators."})
+    if any(not is_operator(user) or not user.is_active for user in selected):
         raise ValidationError({"operator_id": "Select an active user in the Operators group."})
-    if incident.assigned_to_id == operator.pk:
+    previous = ([incident.assigned_to] if incident.assigned_to_id else []) + list(incident.supporting_operators.all())
+    if {user.pk for user in previous} == {user.pk for user in selected}:
         return incident
 
     previous_operator = incident.assigned_to
-    incident.assigned_to = operator
+    incident.assigned_to = selected[0]
     incident.save(update_fields=["assigned_to", "updated_at"])
+    incident.supporting_operators.set(selected[1:])
     IncidentEvent.objects.create(
         incident=incident,
         event_type=IncidentEvent.Type.ASSIGNED,
@@ -29,7 +36,9 @@ def assign_incident(*, incident_id, actor, operator):
         new_status=incident.status,
         details={
             "previous_operator": previous_operator.username if previous_operator else None,
-            "assigned_operator": operator.username,
+            "assigned_operator": selected[0].username,
+            "previous_operators": [user.username for user in previous],
+            "assigned_operators": [user.username for user in selected],
         },
     )
     return incident
@@ -38,7 +47,7 @@ def assign_incident(*, incident_id, actor, operator):
 @transaction.atomic
 def start_incident(*, incident_id, actor):
     incident = Incident.objects.select_for_update().get(pk=incident_id)
-    if not (is_team_lead(actor) or (is_operator(actor) and incident.assigned_to_id == actor.id)):
+    if not (is_team_lead(actor) or (is_operator(actor) and incident.has_operator(actor))):
         raise PermissionDenied("Only the assigned operator or a team lead can start this incident.")
     if incident.status != Incident.Status.OPEN:
         raise ValidationError({"status": "Only open incidents can be started."})
@@ -60,7 +69,7 @@ def start_incident(*, incident_id, actor):
 @transaction.atomic
 def resolve_incident(*, incident_id, actor, resolution_notes):
     incident = Incident.objects.select_for_update().get(pk=incident_id)
-    if not (is_team_lead(actor) or (is_operator(actor) and incident.assigned_to_id == actor.id)):
+    if not (is_team_lead(actor) or (is_operator(actor) and incident.has_operator(actor))):
         raise PermissionDenied("Only the assigned operator or a team lead can resolve this incident.")
     if incident.status != Incident.Status.IN_PROGRESS:
         raise ValidationError({"status": "Only in-progress incidents can be resolved."})

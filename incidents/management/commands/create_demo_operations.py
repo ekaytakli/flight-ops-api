@@ -106,11 +106,12 @@ class Command(BaseCommand):
                 )
                 resolve_incident(incident_id=incident.pk, actor=operator, resolution_notes=notes)
             # Only newly generated demo history is dated back, preserving chronological audit events.
-            created_at = now - timedelta(minutes=50 + index * 19)
+            created_at = now - timedelta(minutes=35 + index * 53 + (index * index * 17) % 241)
             events = list(incident.events.order_by("created_at", "pk"))
             last_action = created_at
             for step, event in enumerate(events):
-                last_action = created_at + timedelta(minutes=step * 10)
+                if step:
+                    last_action += timedelta(minutes=3 + (index * 13 + step * 7) % 64)
                 incident.events.filter(pk=event.pk).update(created_at=last_action)
             Incident.objects.filter(pk=incident.pk).update(created_at=created_at, updated_at=last_action)
 

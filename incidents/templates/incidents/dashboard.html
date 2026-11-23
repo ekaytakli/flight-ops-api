@@ -7,14 +7,14 @@
   <meta name="theme-color" content="#102b35">
   <title>Flight Ops — Operasyon Paneli</title>
   <link rel="stylesheet" href="{% static 'incidents/dashboard.css' %}">
-  <script src="{% static 'incidents/dashboard.js' %}" defer></script>
+  <script src="{% static 'incidents/dashboard.js' %}?v=20261123-ariza-2" defer></script>
 </head>
 <body>
   <section id="login-screen" class="login-screen">
     <div class="login-story">
       <a class="brand" href="/" aria-label="Flight Ops ana sayfa"><span class="brand-icon">↗</span><span>flight<span class="brand-light">ops</span><small>OPERASYON MERKEZİ</small></span></a>
       <div class="login-message"><span class="eyebrow">HER UÇUŞTA, BİRLİKTE.</span><h1>Operasyonun<br>kontrolü sende.</h1><p>Tüm uçuşlarda teknik arıza kayıtlarını, ekip atamalarını ve çözüm süreçlerini tek yerden takip et.</p></div>
-      <p class="login-footer">Flight Operations Incident API <span>•</span> Ekip çalışma alanı</p>
+      <p class="login-footer">Flight Operations Arıza API <span>•</span> Ekip çalışma alanı</p>
     </div>
     <div class="login-panel"><form id="login-form" class="login-form">
       <span class="eyebrow muted">EKİBİNE BAĞLAN</span><h2>Tekrar hoş geldin.</h2><p>Operasyon paneline hesabınla giriş yap.</p>
@@ -36,22 +36,22 @@
     <aside class="sidebar">
       <a class="brand" href="/"><span class="brand-icon">↗</span><span>flight<span class="brand-light">ops</span><small>OPERASYON MERKEZİ</small></span></a>
       <span class="nav-label">ÇALIŞMA ALANI</span>
-      <nav aria-label="Ana menü"><button class="nav-item active" data-page="incidents"><span>▦</span> Incident kayıtları <span class="nav-count" id="nav-count">0</span></button><button class="nav-item" data-page="flights" data-lead><span>✈</span> Uçuşlar</button></nav>
+      <nav aria-label="Ana menü"><button class="nav-item active" data-page="incidents"><span>▦</span> Arıza kayıtları <span class="nav-count" id="nav-count">0</span></button><button class="nav-item" data-page="flights" data-lead><span>✈</span> Uçuşlar</button></nav>
       <div class="sidebar-bottom"><div class="environment"><span class="status-dot"></span> Operasyon çalışma alanı</div><div class="profile"><span class="avatar" id="avatar"></span><div><strong id="profile-name"></strong><small id="profile-role"></small></div><button id="logout" class="icon-button" title="Çıkış yap" aria-label="Çıkış yap">↪</button></div></div>
     </aside>
     <main>
-      <header class="topbar"><div><span class="breadcrumb">Çalışma alanı</span><span class="slash">/</span><span id="breadcrumb-page">Incident kayıtları</span></div><div class="topbar-actions"><span class="topbar-date" id="today"></span><button id="change-password" class="button secondary">Parolamı değiştir</button></div></header>
+      <header class="topbar"><div><span class="breadcrumb">Çalışma alanı</span><span class="slash">/</span><span id="breadcrumb-page">Arıza kayıtları</span></div><div class="topbar-actions"><span class="topbar-date" id="today"></span><button id="change-password" class="button secondary">Parolamı değiştir</button></div></header>
       <div class="page-content">
-        <div class="page-heading"><div><span class="eyebrow muted">UÇUŞ OPERASYONLARI</span><h1 id="page-title">Incident kayıtları</h1><p id="page-subtitle">Ekibinin iş akışını takip et, operasyonu kesintisiz sürdür.</p></div><div class="heading-actions"><button id="refresh" class="button secondary" title="Verileri yenile">↻ <span>Yenile</span></button><button id="new-incident" class="button primary" data-lead>＋ Yeni incident</button><button id="new-flight" class="button primary" data-lead hidden>＋ Yeni uçuş</button></div></div>
+        <div class="page-heading"><div><span class="eyebrow muted">UÇUŞ OPERASYONLARI</span><h1 id="page-title">Arıza kayıtları</h1><p id="page-subtitle">Ekibinin iş akışını takip et, operasyonu kesintisiz sürdür.</p></div><div class="heading-actions"><button id="refresh" class="button secondary" title="Verileri yenile">↻ <span>Yenile</span></button><button id="new-incident" class="button primary" data-lead>＋ Yeni arıza</button><button id="new-flight" class="button primary" data-lead hidden>＋ Yeni uçuş</button></div></div>
         <div id="load-error" class="error-banner" role="alert" hidden></div>
-        <section class="stats" id="stats" aria-label="Incident özeti">
-          <article class="stat-card"><div><span>Toplam kayıt</span><span class="stat-icon slate">▦</span></div><strong id="stat-total">—</strong><small>Tüm incident kayıtları</small></article>
+        <section class="stats" id="stats" aria-label="Arıza özeti">
+          <article class="stat-card"><div><span>Toplam kayıt</span><span class="stat-icon slate">▦</span></div><strong id="stat-total">—</strong><small>Tüm arıza kayıtları</small></article>
           <article class="stat-card"><div><span>Açık</span><span class="stat-icon amber">◷</span></div><strong id="stat-open">—</strong><small>İşleme alınmayı bekliyor</small></article>
           <article class="stat-card"><div><span>İşlemde</span><span class="stat-icon blue">↗</span></div><strong id="stat-progress">—</strong><small>Çözüm üzerinde çalışılıyor</small></article>
           <article class="stat-card"><div><span>Çözüldü</span><span class="stat-icon green">✓</span></div><strong id="stat-resolved">—</strong><small>Tamamlanan işlemler</small></article>
         </section>
         <section class="records-card" aria-labelledby="records-title">
-          <div class="records-heading"><div><h2 id="records-title">Tüm incident kayıtları</h2><span id="record-count" class="record-count">Veriler yükleniyor…</span></div><span class="scope-note" id="scope-note">Ekip görünümü</span></div>
+          <div class="records-heading"><div><h2 id="records-title">Tüm arıza kayıtları</h2><span id="record-count" class="record-count">Veriler yükleniyor…</span></div><span class="scope-note" id="scope-note">Ekip görünümü</span></div>
           <div class="filters">
             <label class="search-field"><span aria-hidden="true">⌕</span><input type="search" id="search" aria-label="Kayıtlarda ara" placeholder="Uçuş, açıklama veya operatör ara…"></label>
             <div class="select-filters" id="incident-filters">
@@ -71,7 +71,7 @@
   </div>
 
   <dialog id="form-dialog" class="form-dialog"><div class="dialog-heading"><div><span class="eyebrow muted">YENİ KAYIT</span><h2 id="form-title"></h2></div><button type="button" class="icon-button close-dialog" aria-label="Pencereyi kapat">×</button></div><form id="record-form"><div id="form-fields" class="form-fields"></div><p id="form-error" class="form-error" role="alert" hidden></p><div class="dialog-actions"><button type="button" class="button secondary close-dialog">Vazgeç</button><button type="submit" class="button primary" id="form-submit">Oluştur</button></div></form></dialog>
-  <dialog id="detail-dialog" class="detail-dialog"><div class="dialog-heading"><div><span class="eyebrow muted">INCIDENT DETAYI</span><h2 id="detail-title">Kayıt yükleniyor…</h2></div><button type="button" class="icon-button close-dialog" aria-label="Detayı kapat">×</button></div><div id="detail-content"></div></dialog>
+  <dialog id="detail-dialog" class="detail-dialog"><div class="dialog-heading"><div><span class="eyebrow muted">ARIZA DETAYI</span><h2 id="detail-title">Kayıt yükleniyor…</h2></div><button type="button" class="icon-button close-dialog" aria-label="Detayı kapat">×</button></div><div id="detail-content"></div></dialog>
   <dialog id="password-dialog" class="form-dialog">
     <div class="dialog-heading"><h2>Parolamı değiştir</h2><button type="button" class="icon-button close-dialog" aria-label="Pencereyi kapat">×</button></div>
     <form id="password-form"><div class="password-fields"><label>Mevcut parola<input type="password" name="old_password" autocomplete="current-password" required></label><label>Yeni parola<input type="password" name="new_password" autocomplete="new-password" minlength="8" required></label><label>Yeni parola (tekrar)<input type="password" name="confirmation" autocomplete="new-password" minlength="8" required></label></div><p class="field-hint">En az 8 karakter içeren, yaygın olmayan bir parola seç. Değişiklikten sonra tüm token oturumların kapanır; yeni parolanla tekrar giriş yapmalısın.</p><p id="password-error" class="form-error" role="alert" hidden></p><div class="dialog-actions"><button type="button" class="button secondary close-dialog">Vazgeç</button><button type="submit" class="button primary">Parolayı kaydet</button></div></form>

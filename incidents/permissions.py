@@ -16,5 +16,5 @@ class IsTeamLeadOrOperator(BasePermission):
 class IsTeamLeadOrAssignedOperator(BasePermission):
     def has_object_permission(self, request, view, obj):
         return is_team_lead(request.user) or (
-            is_operator(request.user) and obj.assigned_to_id == request.user.id
+            is_operator(request.user) and obj.has_operator(request.user)
         )

@@ -377,7 +377,6 @@ paths:
           multipart/form-data:
             schema:
               $ref: '#/components/schemas/Assignment'
-        required: true
       security:
       - tokenAuth: []
       responses:
@@ -534,8 +533,12 @@ components:
       properties:
         operator_id:
           type: integer
-      required:
-      - operator_id
+        operator_ids:
+          type: array
+          items:
+            type: integer
+          maxItems: 2
+          minItems: 1
     AuthToken:
       type: object
       properties:
@@ -653,6 +656,11 @@ components:
           type: string
           readOnly: true
           nullable: true
+        assigned_operators:
+          type: array
+          items:
+            type: string
+          readOnly: true
         status:
           allOf:
           - $ref: '#/components/schemas/IncidentStatusEnum'
@@ -669,6 +677,7 @@ components:
           format: date-time
           readOnly: true
       required:
+      - assigned_operators
       - assigned_to
       - created_at
       - created_by

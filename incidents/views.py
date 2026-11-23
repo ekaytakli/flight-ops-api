@@ -115,7 +115,7 @@ class IncidentViewSet(
     serializer_class = IncidentSerializer
     pagination_class = OperationsPagination
     filter_backends = [SearchFilter, IncidentOrderingFilter]
-    search_fields = ["flight__flight_number", "flight__departure_airport_code", "flight__arrival_airport_code", "description", "assigned_to__username"]
+    search_fields = ["flight__flight_number", "flight__departure_airport_code", "flight__arrival_airport_code", "description", "assigned_to__username", "supporting_operators__username"]
     ordering_fields = ["created_at", "updated_at", "priority", "flight__flight_number", "id"]
     ordering = ["-created_at", "-pk"]
     permission_classes = [
@@ -128,7 +128,7 @@ class IncidentViewSet(
         started = IncidentEvent.objects.filter(
             incident_id=OuterRef("pk"), event_type=IncidentEvent.Type.STARTED,
         ).order_by("created_at", "pk").values("created_at")[:1]
-        queryset = Incident.objects.select_related("flight", "created_by", "assigned_to").annotate(
+        queryset = Incident.objects.select_related("flight", "created_by", "assigned_to").prefetch_related("supporting_operators").annotate(
             work_started_at=Subquery(started),
             priority_rank=Case(
                 *[When(priority=value, then=Value(rank)) for rank, value in enumerate(Incident.Priority.values)],
@@ -138,7 +138,7 @@ class IncidentViewSet(
         if is_team_lead(self.request.user):
             pass
         elif is_operator(self.request.user):
-            queryset = queryset.filter(assigned_to=self.request.user)
+            queryset = queryset.filter(Q(assigned_to=self.request.user) | Q(supporting_operators=self.request.user)).distinct()
         else:
             return queryset.none()
 
@@ -199,7 +199,7 @@ class IncidentViewSet(
         incident = assign_incident(
             incident_id=incident.pk,
             actor=request.user,
-            operator=serializer.validated_data["operator"],
+            **serializer.validated_data,
         )
         return Response(self.get_serializer(incident).data)
 

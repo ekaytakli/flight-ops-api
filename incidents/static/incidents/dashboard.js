@@ -6,8 +6,8 @@
   const statuses = { OPEN: "Açık", IN_PROGRESS: "İşlemde", RESOLVED: "Çözüldü" };
   const kinds = { DELAY: "Gecikme", CANCELLATION: "İptal" };
   const priorities = { LOW: "Düşük", NORMAL: "Normal", HIGH: "Yüksek", CRITICAL: "Kritik" };
-  const eventNames = { CREATED: "Incident oluşturuldu", ASSIGNED: "Operatöre atandı", STARTED: "Çalışma başlatıldı", RESOLVED: "Incident çözüldü", PRIORITY_CHANGED: "Öncelik değiştirildi" };
-  const fieldNames = { username: "Kullanıcı adı", password: "Parola", old_password: "Mevcut parola", new_password: "Yeni parola", priority: "Öncelik", flight_number: "Uçuş numarası", departure_airport_code: "Kalkış havalimanı", arrival_airport_code: "Varış havalimanı", scheduled_departure: "Kalkış zamanı", scheduled_arrival: "Varış zamanı", flight: "Uçuş", kind: "Tür", description: "Açıklama", operator_id: "Operatör", resolution_notes: "Çözüm notu", status: "Durum", assigned_to: "Atanan operatör" };
+  const eventNames = { CREATED: "Arıza oluşturuldu", ASSIGNED: "Operatöre atandı", STARTED: "Çalışma başlatıldı", RESOLVED: "Arıza çözüldü", PRIORITY_CHANGED: "Öncelik değiştirildi" };
+  const fieldNames = { username: "Kullanıcı adı", password: "Parola", old_password: "Mevcut parola", new_password: "Yeni parola", priority: "Öncelik", flight_number: "Uçuş numarası", departure_airport_code: "Kalkış havalimanı", arrival_airport_code: "Varış havalimanı", scheduled_departure: "Kalkış zamanı", scheduled_arrival: "Varış zamanı", flight: "Uçuş", kind: "Tür", description: "Açıklama", operator_id: "Operatör", operator_ids: "Operatörler", resolution_notes: "Çözüm notu", status: "Durum", assigned_to: "Atanan operatör" };
   const messages = {
     "Unable to log in with provided credentials.": "Kullanıcı adı veya parola yanlış.",
     "This field is required.": "Bu alan zorunludur.",
@@ -30,6 +30,7 @@
   const isLead = () => state.user?.role === "team_lead";
   const priorityBadge = (value) => `<span class="priority ${escape(value)}">${escape(priorities[value] || value)}</span>`;
   const priorityOptions = (value) => Object.entries(priorities).map(([key, label]) => `<option value="${key}" ${value === key ? "selected" : ""}>${label}</option>`).join("");
+  const assignedOperators = (item) => item.assigned_operators || (item.assigned_to ? [item.assigned_to] : []);
   const duration = (seconds) => {
     const minutes = Math.floor(seconds / 60);
     if (minutes < 1) return "1 dk'dan az";
@@ -241,10 +242,10 @@
     state.pageNumber = 1;
     const flights = page === "flights";
     document.querySelectorAll("[data-page]").forEach((button) => button.classList.toggle("active", button.dataset.page === page));
-    $("#page-title").textContent = flights ? "Uçuşlar" : "Incident kayıtları";
+    $("#page-title").textContent = flights ? "Uçuşlar" : "Arıza kayıtları";
     $("#breadcrumb-page").textContent = $("#page-title").textContent;
     $("#page-subtitle").textContent = flights ? "Uçuş planlarını yönet, operasyon kayıtlarını bir arada tut." : isLead() ? "Ekibinin iş akışını takip et, operasyonu kesintisiz sürdür." : "Sana atanan işleri takip et, çözümleri ekibinle paylaş.";
-    $("#records-title").textContent = flights ? "Uçuş planı" : "Tüm incident kayıtları";
+    $("#records-title").textContent = flights ? "Uçuş planı" : "Tüm arıza kayıtları";
     $("#new-incident").hidden = !isLead() || flights;
     $("#new-flight").hidden = !isLead() || !flights;
     $("#stats").hidden = flights;
@@ -272,12 +273,12 @@
       return;
     }
     const filtered = $("#search").value || (!flights && ["status", "kind", "priority"].some((field) => $(`#${field}-filter`).value));
-    $("#empty-title").textContent = filtered ? "Eşleşen kayıt bulunamadı" : flights ? "Henüz uçuş yok" : "Henüz incident yok";
-    $("#empty-message").textContent = filtered ? "Aramanı veya filtrelerini değiştirerek tekrar dene." : isLead() ? "İlk kaydını üstteki oluşturma düğmesiyle ekleyebilirsin." : "Sana atanan incident kayıtları burada görünecek.";
+    $("#empty-title").textContent = filtered ? "Eşleşen kayıt bulunamadı" : flights ? "Henüz uçuş yok" : "Henüz arıza yok";
+    $("#empty-message").textContent = filtered ? "Aramanı veya filtrelerini değiştirerek tekrar dene." : isLead() ? "İlk kaydını üstteki oluşturma düğmesiyle ekleyebilirsin." : "Sana atanan arıza kayıtları burada görünecek.";
     $("#table-body").innerHTML = rows.map((item) => {
       if (flights) return `<tr><td><strong class="flight-number">${escape(item.flight_number)}</strong><span class="cell-secondary">Uçuş #${item.id}</span></td><td>${escape(item.departure_airport_code)} <span class="muted">→</span> ${escape(item.arrival_airport_code)}</td><td>${escape(date(item.scheduled_departure))}</td><td>${escape(date(item.scheduled_arrival))}</td><td><button class="detail-button" data-flight="${item.id}">Düzenle</button></td></tr>`;
       const flight = item.flight_details;
-      return `<tr><td><strong class="flight-number">${escape(flight.flight_number)} <span class="muted">· #${item.id}</span></strong><span class="cell-secondary">${escape(flight.departure_airport_code)} → ${escape(flight.arrival_airport_code)}</span><span class="incident-description" title="${escape(item.description)}">${escape(item.description)}</span></td><td>${kind(item.kind)}<span class="cell-secondary">${priorityBadge(item.priority)}</span></td><td>${badge(item.status)}<span class="cell-secondary">${duration(item.waiting_seconds)} ${item.status === "OPEN" ? "bekliyor" : "bekledi"}</span></td><td>${item.assigned_to ? `<span class="operator-cell"><span class="mini-avatar">${escape(item.assigned_to.slice(0, 2).toLocaleUpperCase("tr-TR"))}</span>${escape(item.assigned_to)}</span>` : '<span class="unassigned">— Atanmadı</span>'}</td><td><span class="operator-cell">${escape(date(item.updated_at))}</span><span class="cell-secondary">Açılış: ${escape(date(item.created_at))}</span></td><td><button class="detail-button" data-incident="${item.id}" aria-label="${escape(flight.flight_number)} incident ${item.id} detayını aç">Detay ↗</button></td></tr>`;
+      return `<tr><td><strong class="flight-number">${escape(flight.flight_number)} <span class="muted">· #${item.id}</span></strong><span class="cell-secondary">${escape(flight.departure_airport_code)} → ${escape(flight.arrival_airport_code)}</span><span class="incident-description" title="${escape(item.description)}">${escape(item.description)}</span></td><td>${kind(item.kind)}<span class="cell-secondary">${priorityBadge(item.priority)}</span></td><td>${badge(item.status)}<span class="cell-secondary">${duration(item.waiting_seconds)} ${item.status === "OPEN" ? "bekliyor" : "bekledi"}</span></td><td>${assignedOperators(item).length ? assignedOperators(item).map((username) => `<span class="operator-cell"><span class="mini-avatar">${escape(username.slice(0, 2).toLocaleUpperCase("tr-TR"))}</span>${escape(username)}</span>`).join("") : '<span class="unassigned">— Atanmadı</span>'}</td><td><span class="operator-cell">${escape(date(item.updated_at))}</span><span class="cell-secondary">Açılış: ${escape(date(item.created_at))}</span></td><td><button class="detail-button" data-incident="${item.id}" aria-label="${escape(flight.flight_number)} arıza ${item.id} detayını aç">Detay ↗</button></td></tr>`;
     }).join("");
   }
 
@@ -314,7 +315,7 @@
         if (generation !== state.generation || formGeneration !== state.formGeneration || !isLead()) return;
         state.flightOptions = data.results;
         if (!data.count) {
-          toast("Incident açmadan önce bir uçuş oluştur.");
+          toast("Arıza açmadan önce bir uçuş oluştur.");
           setPage("flights");
           return openForm("flight");
         }
@@ -326,7 +327,7 @@
     state.editFlight = flightId ? state.flights.find((flight) => flight.id === flightId) : null;
     $("#record-form").reset();
     $("#form-error").hidden = true;
-    $("#form-title").textContent = type === "flight" ? state.editFlight ? "Uçuşu düzenle" : "Yeni uçuş oluştur" : "Yeni incident aç";
+    $("#form-title").textContent = type === "flight" ? state.editFlight ? "Uçuşu düzenle" : "Yeni uçuş oluştur" : "Yeni arıza";
     $("#form-submit").textContent = state.editFlight ? "Değişiklikleri kaydet" : "Oluştur";
     $("#form-fields").innerHTML = type === "flight" ? `
       <label class="full-width">Uçuş numarası<input name="flight_number" placeholder="Örn. TK1234" maxlength="8" required></label>
@@ -337,7 +338,7 @@
       <span class="field-hint full-width">Zamanları cihazının yerel saat diliminde gir. Kayıt sırasında UTC'ye dönüştürülür.</span>` : `
       <label class="full-width">Uçuş ara<input type="search" id="flight-search" placeholder="Uçuş numarası veya havalimanı…"><span class="field-hint">En fazla 20 eşleşme gösterilir. Aradığın uçuş yoksa aramayı daralt.</span></label>
       <label class="full-width">Uçuş<select name="flight" required>${flightOptions()}</select></label>
-      <label class="full-width">Incident türü<select name="kind"><option value="DELAY">Gecikme</option><option value="CANCELLATION">İptal</option></select></label>
+      <label class="full-width">Arıza türü<select name="kind"><option value="DELAY">Gecikme</option><option value="CANCELLATION">İptal</option></select></label>
       <label class="full-width">Öncelik<select name="priority">${priorityOptions("NORMAL")}</select></label>
       <label class="full-width">Açıklama<textarea name="description" placeholder="Ne oldu? Operasyon ekibinin bilmesi gerekenleri yaz…" required></textarea></label>`;
     if (state.editFlight) {
@@ -394,7 +395,7 @@
       }
       await api(type === "flight" ? editing ? `flights/${editing.id}/` : "flights/" : "incidents/", { method: editing ? "PATCH" : "POST", body: data });
       $("#form-dialog").close();
-      toast(type === "flight" ? editing ? "Uçuş planı güncellendi." : "Uçuş planı oluşturuldu." : "Incident açıldı. Detay ekranından operatöre atayabilirsin.");
+      toast(type === "flight" ? editing ? "Uçuş planı güncellendi." : "Uçuş planı oluşturuldu." : "Arıza açıldı. Detay ekranından operatöre atayabilirsin.");
       await load();
     } catch (error) {
       $("#form-error").textContent = error.message;
@@ -408,21 +409,21 @@
   async function openDetail(id) {
     const generation = ++state.detailGeneration;
     const dialog = $("#detail-dialog");
-    $("#detail-title").textContent = `Incident #${id}`;
+    $("#detail-title").textContent = `Arıza #${id}`;
     $("#detail-content").innerHTML = '<p class="muted">Detay ve olay geçmişi yükleniyor…</p>';
     if (!dialog.open) dialog.showModal();
     try {
       const [incident, events] = await Promise.all([api(`incidents/${id}/`), api(`incidents/${id}/events/`)]);
       if (generation !== state.detailGeneration) return;
       const flight = incident.flight_details;
-      $("#detail-title").textContent = `${flight.flight_number} · Incident #${id}`;
-      const canAct = isLead() || incident.assigned_to === state.user.username;
+      $("#detail-title").textContent = `${flight.flight_number} · Arıza #${id}`;
+      const canAct = isLead() || assignedOperators(incident).includes(state.user.username);
       let actions = "";
       if (isLead() && incident.status !== "RESOLVED") {
         actions += `<form data-action="priority"><label>Öncelik<select name="priority">${priorityOptions(incident.priority)}</select></label><button class="button secondary" type="submit">Önceliği kaydet</button></form>`;
       }
       if (isLead() && incident.status === "OPEN") {
-        actions += `<form data-action="assign"><label>Operatör ataması<select name="operator_id" required><option value="">Operatör seç…</option>${state.operators.map((operator) => `<option value="${operator.id}" ${operator.username === incident.assigned_to ? "selected" : ""}>${escape(operator.username)}${operator.first_name ? ` · ${escape(operator.first_name)} ${escape(operator.last_name)}` : ""}</option>`).join("")}</select></label><button class="button secondary" type="submit" ${state.operators.length ? "" : "disabled"}>Atamayı kaydet</button></form>`;
+        actions += `<form data-action="assign"><label>Operatör ataması (en fazla 2)<select name="operator_ids" multiple size="5" required>${state.operators.map((operator) => `<option value="${operator.id}" ${assignedOperators(incident).includes(operator.username) ? "selected" : ""}>${escape(operator.username)}${operator.first_name ? ` · ${escape(operator.first_name)} ${escape(operator.last_name)}` : ""}</option>`).join("")}</select><span class="field-hint">Birlikte çalışacak iki kişiyi Ctrl / ⌘ tuşuyla seçebilirsin.</span></label><button class="button secondary" type="submit" ${state.operators.length ? "" : "disabled"}>Atamayı kaydet</button></form>`;
         if (!state.operators.length) actions += '<p class="field-hint">Aktif operatör bulunamadı. Django yönetiminden Operators grubuna kullanıcı ekleyin.</p>';
       }
       if (canAct && incident.status === "OPEN") actions += `<div><button class="button primary" id="start-incident" ${incident.assigned_to ? "" : "disabled"}>↗ İşi başlat</button>${incident.assigned_to ? "" : '<p class="field-hint" style="margin-top:9px">Başlatmak için önce bir operatör atanmalı.</p>'}</div>`;
@@ -430,17 +431,24 @@
       $("#detail-content").innerHTML = `
         <div class="detail-meta">${badge(incident.status)} ${kind(incident.kind)} ${priorityBadge(incident.priority)}</div>
         <p class="detail-description">${escape(incident.description)}</p>
-        <dl class="detail-grid"><div><dt>Güzergâh</dt><dd>${escape(flight.departure_airport_code)} → ${escape(flight.arrival_airport_code)}</dd></div><div><dt>Planlanan kalkış</dt><dd>${escape(date(flight.scheduled_departure))}</dd></div><div><dt>Oluşturan</dt><dd>${escape(incident.created_by)}</dd></div><div><dt>Atanan operatör</dt><dd>${escape(incident.assigned_to || "Henüz atanmadı")}</dd></div><div><dt>${incident.status === "OPEN" ? "Açık bekleme süresi" : "Başlatılana kadar bekleme"}</dt><dd>${duration(incident.waiting_seconds)}</dd></div><div><dt>Son işlem zamanı</dt><dd>${escape(date(incident.updated_at))}</dd></div></dl>
+        <dl class="detail-grid"><div><dt>Güzergâh</dt><dd>${escape(flight.departure_airport_code)} → ${escape(flight.arrival_airport_code)}</dd></div><div><dt>Planlanan kalkış</dt><dd>${escape(date(flight.scheduled_departure))}</dd></div><div><dt>Oluşturan</dt><dd>${escape(incident.created_by)}</dd></div><div><dt>Atanan operatör</dt><dd>${escape(assignedOperators(incident).join(", ") || "Henüz atanmadı")}</dd></div><div><dt>${incident.status === "OPEN" ? "Açık bekleme süresi" : "Başlatılana kadar bekleme"}</dt><dd>${duration(incident.waiting_seconds)}</dd></div><div><dt>Son işlem zamanı</dt><dd>${escape(date(incident.updated_at))}</dd></div></dl>
         ${incident.resolution_notes ? `<div class="resolution"><strong>Çözüm notu</strong>${escape(incident.resolution_notes)}</div>` : ""}
-        ${actions ? `<section class="detail-actions" aria-label="Incident işlemleri">${actions}</section>` : ""}
+        ${actions ? `<section class="detail-actions" aria-label="Arıza işlemleri">${actions}</section>` : ""}
         <p id="detail-error" class="form-error detail-error" role="alert" hidden></p>
         <h3 class="history-heading">Olay geçmişi <span class="muted">· ${events.length}</span></h3>
-        <ol class="timeline">${events.map((event) => `<li><div class="event-heading"><strong>${escape(eventNames[event.event_type] || event.event_type)}</strong><time datetime="${escape(event.created_at)}">${escape(date(event.created_at))}</time></div><p><strong>${escape(event.actor)}</strong> · ${event.previous_status ? `${escape(statuses[event.previous_status])} → ` : ""}${escape(statuses[event.new_status] || "")}</p>${event.details?.priority ? `<p>Öncelik: ${event.details.previous_priority ? `${escape(priorities[event.details.previous_priority])} → ` : ""}${escape(priorities[event.details.priority])}</p>` : ""}${event.details?.assigned_operator ? `<p>Atanan operatör: ${escape(event.details.assigned_operator)}</p>` : ""}${event.details?.resolution_notes ? `<p>${escape(event.details.resolution_notes)}</p>` : ""}</li>`).join("")}</ol>`;
+        <ol class="timeline">${events.map((event) => `<li><div class="event-heading"><strong>${escape(eventNames[event.event_type] || event.event_type)}</strong><time datetime="${escape(event.created_at)}">${escape(date(event.created_at))}</time></div><p><strong>${escape(event.actor)}</strong> · ${event.previous_status ? `${escape(statuses[event.previous_status])} → ` : ""}${escape(statuses[event.new_status] || "")}</p>${event.details?.priority ? `<p>Öncelik: ${event.details.previous_priority ? `${escape(priorities[event.details.previous_priority])} → ` : ""}${escape(priorities[event.details.priority])}</p>` : ""}${event.details?.assigned_operator ? `<p>Atanan operatör: ${escape((event.details.assigned_operators || [event.details.assigned_operator]).join(", "))}</p>` : ""}${event.details?.resolution_notes ? `<p>${escape(event.details.resolution_notes)}</p>` : ""}</li>`).join("")}</ol>`;
       $("#start-incident")?.addEventListener("click", () => performAction(id, "start", {}));
       dialog.querySelectorAll("form[data-action]").forEach((form) => form.addEventListener("submit", (event) => {
         event.preventDefault();
         const body = Object.fromEntries(new FormData(form));
-        if (form.dataset.action === "assign") body.operator_id = Number(body.operator_id);
+        if (form.dataset.action === "assign") {
+          body.operator_ids = new FormData(form).getAll("operator_ids").map(Number);
+          if (body.operator_ids.length > 2) {
+            $("#detail-error").textContent = "En fazla iki operatör seçebilirsin.";
+            $("#detail-error").hidden = false;
+            return;
+          }
+        }
         performAction(id, form.dataset.action, body);
       }));
     } catch (error) {
@@ -461,7 +469,7 @@
     $("#detail-error").hidden = true;
     try {
       await api(`incidents/${id}/${action}/`, { method: "POST", body });
-      toast({ priority: "Öncelik güncellendi.", assign: "Operatör ataması kaydedildi.", start: "Çalışma başlatıldı.", resolve: "Incident çözüldü. Çözüm notun olay geçmişine eklendi." }[action]);
+      toast({ priority: "Öncelik güncellendi.", assign: "Operatör ataması kaydedildi.", start: "Çalışma başlatıldı.", resolve: "Arıza çözüldü. Çözüm notun olay geçmişine eklendi." }[action]);
       await load();
       if (dialog.open && state.user) await openDetail(id);
     } catch (error) {
