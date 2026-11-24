@@ -649,6 +649,27 @@ components:
           type: integer
           minimum: 0
           readOnly: true
+          nullable: true
+        processing_seconds:
+          type: integer
+          minimum: 0
+          readOnly: true
+          nullable: true
+        total_seconds:
+          type: integer
+          minimum: 0
+          readOnly: true
+          nullable: true
+        started_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        resolved_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
         created_by:
           type: string
           readOnly: true
@@ -686,8 +707,12 @@ components:
       - flight_details
       - id
       - kind
+      - processing_seconds
       - resolution_notes
+      - resolved_at
+      - started_at
       - status
+      - total_seconds
       - updated_at
       - waiting_seconds
     IncidentEvent:

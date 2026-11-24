@@ -52,7 +52,11 @@ class FlightSerializer(serializers.ModelSerializer):
 
 
 class IncidentSerializer(serializers.ModelSerializer):
-    waiting_seconds = serializers.SerializerMethodField()
+    waiting_seconds = serializers.IntegerField(read_only=True, min_value=0, allow_null=True)
+    processing_seconds = serializers.IntegerField(read_only=True, min_value=0, allow_null=True)
+    total_seconds = serializers.IntegerField(read_only=True, min_value=0, allow_null=True)
+    started_at = serializers.DateTimeField(read_only=True, allow_null=True)
+    resolved_at = serializers.DateTimeField(read_only=True, allow_null=True)
     assigned_operators = serializers.SerializerMethodField()
 
     @extend_schema_field(serializers.ListField(child=serializers.CharField()))
@@ -61,15 +65,34 @@ class IncidentSerializer(serializers.ModelSerializer):
             user.username for user in instance.supporting_operators.all()
         ]
 
-    @extend_schema_field(serializers.IntegerField(min_value=0))
-    def get_waiting_seconds(self, instance):
-        if instance.status == Incident.Status.OPEN:
-            end = timezone.now()
-        elif hasattr(instance, "work_started_at"):
-            end = instance.work_started_at
-        else:
-            end = instance.events.filter(event_type=IncidentEvent.Type.STARTED).values_list("created_at", flat=True).first()
-        return max(0, int((end - instance.created_at).total_seconds())) if end else 0
+    def to_representation(self, instance):
+        result = super().to_representation(instance)
+        now = timezone.now()
+
+        def event_time(annotation, event_type):
+            if hasattr(instance, annotation):
+                return getattr(instance, annotation)
+            return instance.events.filter(event_type=event_type).order_by("created_at", "pk").values_list("created_at", flat=True).first()
+
+        started = event_time("work_started_at", IncidentEvent.Type.STARTED) if instance.status != Incident.Status.OPEN else None
+        resolved = event_time("work_resolved_at", IncidentEvent.Type.RESOLVED) if instance.status == Incident.Status.RESOLVED else None
+        end = resolved if instance.status == Incident.Status.RESOLVED else now
+
+        def seconds(begin, finish):
+            return max(0, int((finish - begin).total_seconds())) if begin and finish else None
+
+        # Use lifecycle events, never updated_at: assignment/priority changes are not work boundaries.
+        # Keep the phases additive even when historical timestamps are out of order.
+        work_start = max(instance.created_at, min(started, end)) if started and end else None
+        total = seconds(instance.created_at, end)
+        waiting = seconds(instance.created_at, now) if instance.status == Incident.Status.OPEN else seconds(instance.created_at, work_start)
+        processing = 0 if instance.status == Incident.Status.OPEN else (total - waiting if total is not None and waiting is not None else None)
+        result.update(
+            waiting_seconds=waiting, processing_seconds=processing, total_seconds=total,
+            started_at=self.fields["started_at"].to_representation(started) if started else None,
+            resolved_at=self.fields["resolved_at"].to_representation(resolved) if resolved else None,
+        )
+        return result
 
     flight_details = FlightSerializer(source="flight", read_only=True)
     created_by = serializers.CharField(source="created_by.username", read_only=True)
@@ -89,6 +112,10 @@ class IncidentSerializer(serializers.ModelSerializer):
             "description",
             "priority",
             "waiting_seconds",
+            "processing_seconds",
+            "total_seconds",
+            "started_at",
+            "resolved_at",
             "created_by",
             "assigned_to",
             "assigned_operators",

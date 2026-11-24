@@ -8,6 +8,7 @@ from rest_framework.authtoken.models import Token
 from rest_framework.test import APITestCase
 
 from incidents.models import Flight, Incident, IncidentEvent
+from incidents.serializers import IncidentSerializer
 from incidents.services import assign_incident, change_priority, create_incident, start_incident
 
 
@@ -82,6 +83,78 @@ class ImprovementTests(APITestCase):
         with patch("incidents.serializers.timezone.now", return_value=timezone.now() + timedelta(days=1)):
             self.assertEqual(self.client.get(path).data["waiting_seconds"], waiting)
         self.assertIn("updated_at", response.data)
+
+    def test_lifecycle_durations_use_events_and_stop_at_resolution(self):
+        incident = self.incident()
+        now = timezone.now().replace(microsecond=0)
+        created = now - timedelta(days=2)
+        started = created + timedelta(minutes=20)
+        resolved = started + timedelta(hours=3)
+        Incident.objects.filter(pk=incident.pk).update(created_at=created)
+        self.client.force_authenticate(self.lead)
+        path = f"/api/incidents/{incident.pk}/"
+
+        def assert_durations(waiting, processing, total):
+            detail = self.client.get(path).data
+            listing = self.client.get("/api/incidents/").data["results"][0]
+            incident.refresh_from_db()
+            direct = IncidentSerializer(incident).data
+            for result in (detail, listing, direct):
+                self.assertEqual(result["waiting_seconds"], waiting)
+                self.assertEqual(result["processing_seconds"], processing)
+                self.assertEqual(result["total_seconds"], total)
+            return detail
+
+        with patch("incidents.serializers.timezone.now", return_value=now):
+            opened = assert_durations(172800, 0, 172800)
+            self.assertIsNone(opened["started_at"])
+            assign_incident(incident_id=incident.pk, actor=self.lead, operator=self.operator)
+            response = self.client.post(path + "start/", {})
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.data["processing_seconds"], 0)
+            incident.events.filter(event_type="STARTED").update(created_at=started)
+            # A later administrative update must not reset the processing clock.
+            change_priority(incident_id=incident.pk, actor=self.lead, priority="HIGH")
+            working = assert_durations(1200, 171600, 172800)
+            self.assertIsNotNone(working["started_at"])
+            self.assertIsNone(working["resolved_at"])
+            response = self.client.post(path + "resolve/", {"resolution_notes": "Fixed"})
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.data["total_seconds"], 172800)
+            incident.events.filter(event_type="RESOLVED").update(created_at=resolved)
+            closed = assert_durations(1200, 10800, 12000)
+            self.assertIsNotNone(closed["resolved_at"])
+        with patch("incidents.serializers.timezone.now", return_value=now + timedelta(days=7)):
+            assert_durations(1200, 10800, 12000)
+
+    def test_missing_history_does_not_invent_work_or_resolution_times(self):
+        incident = self.incident()
+        incident.status = "IN_PROGRESS"
+        incident.save()
+        data = IncidentSerializer(incident).data
+        self.assertIsNone(data["waiting_seconds"])
+        self.assertIsNone(data["processing_seconds"])
+        self.assertIsNotNone(data["total_seconds"])
+        incident.status = "RESOLVED"
+        incident.save()
+        data = IncidentSerializer(incident).data
+        self.assertIsNone(data["total_seconds"])
+        self.assertIsNone(data["resolved_at"])
+
+    def test_historical_out_of_order_times_never_produce_negative_durations(self):
+        incident = self.incident()
+        now = timezone.now()
+        incident.status = "IN_PROGRESS"
+        incident.created_at = now - timedelta(hours=1)
+        incident.save()
+        event = IncidentEvent.objects.create(incident=incident, actor=self.lead, event_type="STARTED")
+        for started in (now + timedelta(hours=1), now - timedelta(hours=2)):
+            IncidentEvent.objects.filter(pk=event.pk).update(created_at=started)
+            with patch("incidents.serializers.timezone.now", return_value=now):
+                data = IncidentSerializer(incident).data
+            self.assertGreaterEqual(data["waiting_seconds"], 0)
+            self.assertGreaterEqual(data["processing_seconds"], 0)
+            self.assertEqual(data["waiting_seconds"] + data["processing_seconds"], data["total_seconds"])
 
     def test_repeated_assignment_preserves_timestamp_and_audit_history(self):
         incident = self.incident()

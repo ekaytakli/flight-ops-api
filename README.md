@@ -27,7 +27,7 @@ token kopyalamanız gerekmez. Demo hesapları aşağıdaki `create_demo_users` k
 - Listeler 20, 50 veya 100 kayıtlık sayfalarla gösterilir. Özet kartları filtrelerden ve sayfadan bağımsız olarak kullanıcının erişebildiği tüm incident kayıtlarını sayar.
 - Uçuşlar ekranındaki **Düzenle** düğmesi uçuş bilgilerini günceller. Incident açarken uçuş araması ilk 20 eşleşmeyi getirir; eski uçuşlar numara veya havalimanıyla aranabilir.
 - Incident önceliği oluşturma sırasında seçilir; ekip sorumlusu açık veya işlemdeki kaydın detayından değiştirebilir. Çözülmüş kaydın önceliği değiştirilemez. Aynı önceliği yeniden kaydetmek ek olay oluşturmaz.
-- Bekleme süresi oluşturulmadan ilk başlatmaya kadar geçen süredir; açık kayıtlarda güncel zamana kadar hesaplanır, başlatıldıktan sonra sabit kalır. Son işlem zamanı `updated_at` alanıdır.
+- Bekleme süresi açılıştan ilk işe başlama anına kadardır; açık kayıtlarda artar, iş başlatıldığında sabitlenir. İşlem süresi ilk `STARTED` olayından şu ana (çözülmüş kayıtta ilk `RESOLVED` olayına) kadar geçen süredir. Toplam süre açılıştan şu ana veya çözüm anına kadardır. Listede mevcut aşamanın süresi ve toplam süre, detayda üç süre ile açılış/başlama/çözüm tarihleri gösterilir. Devam eden sayaçlar sayfa yenilenmeden ilerler; çözülmüş kayıtların süreleri sabittir. Son işlem zamanı `updated_at`, süre başlangıcı olarak kullanılmaz.
 - Tarih ve saatler cihazın yerel saat diliminde girilir/gösterilir; API'ye UTC olarak gönderilir.
 - Oturum token'ı sekmeye özel `sessionStorage` içinde tutulur. **Çıkış yap**, sunucudaki token'ı iptal edip yerel oturumu temizler. DRF kullanıcı başına tek token kullandığından aynı token ile açık diğer sekmeler de yeniden giriş yapmalıdır. Ağ hatasında sunucudaki iptal doğrulanamadığı için panel oturumu açık tutar ve hata gösterir.
 - Üst menüdeki **Parolamı değiştir**, mevcut parolayı ve Django parola kurallarını doğrular. Başarılı değişiklik parolayı güncelleyip kullanıcının token'ını aynı veritabanı işlemi içinde iptal eder. Yeni parolayla tekrar giriş gerekir.
@@ -266,8 +266,12 @@ Başına `-` eklemek azalan sıralama sağlar. Öncelik sırası `LOW < NORMAL <
 aynı değere sahip kayıtlarda kimlik alanı kararlı bir sıralama sağlar. En uzun bekleyen açık kayıtları
 görmek için `status=OPEN&ordering=created_at` kullanın.
 
-Mevcut incident kayıtları `0003` migration'ı ile `NORMAL` öncelik kazanır. `waiting_seconds`
-salt okunurdur; süre, mevcut `STARTED` olayından hesaplandığı için ek zaman alanı gerektirmez.
+Mevcut incident kayıtları `0003` migration'ı ile `NORMAL` öncelik kazanır. `waiting_seconds`,
+`processing_seconds`, `total_seconds`, `started_at` ve `resolved_at` salt okunurdur.
+Süreler mevcut olay geçmişinden hesaplanır; veri migration'ı gerekmez ve eski kayıtlar
+da aynı hesaplamayı kullanır. Başlama/çözüm geçmişi eksikse bu geçmişe bağlı süreler
+`null` döner ve panelde `—` gösterilir. Açık kayıtta işlem süresi `0`, başlama ve
+çözüm tarihleri `null` olur.
 
 ## Docker olmadan yerel çalıştırma
 

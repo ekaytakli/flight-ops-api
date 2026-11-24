@@ -128,8 +128,12 @@ class IncidentViewSet(
         started = IncidentEvent.objects.filter(
             incident_id=OuterRef("pk"), event_type=IncidentEvent.Type.STARTED,
         ).order_by("created_at", "pk").values("created_at")[:1]
+        resolved = IncidentEvent.objects.filter(
+            incident_id=OuterRef("pk"), event_type=IncidentEvent.Type.RESOLVED,
+        ).order_by("created_at", "pk").values("created_at")[:1]
         queryset = Incident.objects.select_related("flight", "created_by", "assigned_to").prefetch_related("supporting_operators").annotate(
             work_started_at=Subquery(started),
+            work_resolved_at=Subquery(resolved),
             priority_rank=Case(
                 *[When(priority=value, then=Value(rank)) for rank, value in enumerate(Incident.Priority.values)],
                 default=Value(1), output_field=IntegerField(),

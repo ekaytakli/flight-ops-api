@@ -32,12 +32,31 @@
   const priorityOptions = (value) => Object.entries(priorities).map(([key, label]) => `<option value="${key}" ${value === key ? "selected" : ""}>${label}</option>`).join("");
   const assignedOperators = (item) => item.assigned_operators || (item.assigned_to ? [item.assigned_to] : []);
   const duration = (seconds) => {
-    const minutes = Math.floor(seconds / 60);
+    if (seconds == null || !Number.isFinite(seconds)) return "—";
+    const minutes = Math.floor(Math.max(0, seconds) / 60);
     if (minutes < 1) return "1 dk'dan az";
     if (minutes < 60) return `${minutes} dk`;
     const hours = Math.floor(minutes / 60);
     return hours < 24 ? `${hours} sa ${minutes % 60} dk` : `${Math.floor(hours / 24)} gün ${hours % 24} sa`;
   };
+  const receivedTimes = new WeakMap();
+  const timer = (item, field) => {
+    const seconds = item[field];
+    if (seconds == null) return "—";
+    const running = item.status === "OPEN" ? field !== "processing_seconds" : item.status === "IN_PROGRESS" && field !== "waiting_seconds";
+    const since = receivedTimes.get(item) ?? performance.now();
+    const elapsed = running ? Math.max(0, (performance.now() - since) / 1000) : 0;
+    return `<span ${running ? `data-duration="${seconds}" data-since="${since}"` : ""}>${duration(seconds + elapsed)}</span>`;
+  };
+  const incidentDurations = (item) => {
+    const phase = item.status === "OPEN" ? `Bekleme: ${timer(item, "waiting_seconds")}` : `İşlem: ${timer(item, "processing_seconds")}`;
+    return `<span class="cell-secondary">${phase}</span><span class="cell-secondary">Toplam: ${timer(item, "total_seconds")}</span>`;
+  };
+  setInterval(() => {
+    document.querySelectorAll("[data-duration]").forEach((element) => {
+      element.textContent = duration(Number(element.dataset.duration) + Math.max(0, (performance.now() - Number(element.dataset.since)) / 1000));
+    });
+  }, 1000);
   const localDateTime = (value) => {
     const time = new Date(value);
     return new Date(time.getTime() - time.getTimezoneOffset() * 60000).toISOString().slice(0, 23);
@@ -75,6 +94,12 @@
       if (response.status >= 500) throw new Error("Sunucuda bir sorun oluştu. Biraz sonra tekrar dene.");
       throw new Error(errorText(data) || "İşlem tamamlanamadı. Bilgileri kontrol et.");
     }
+    const receivedAt = performance.now();
+    const remember = (item) => {
+      if (item && Object.hasOwn(item, "waiting_seconds")) receivedTimes.set(item, receivedAt);
+    };
+    if (Array.isArray(data?.results)) data.results.forEach(remember);
+    else remember(data);
     return data;
   }
 
@@ -278,7 +303,7 @@
     $("#table-body").innerHTML = rows.map((item) => {
       if (flights) return `<tr><td><strong class="flight-number">${escape(item.flight_number)}</strong><span class="cell-secondary">Uçuş #${item.id}</span></td><td>${escape(item.departure_airport_code)} <span class="muted">→</span> ${escape(item.arrival_airport_code)}</td><td>${escape(date(item.scheduled_departure))}</td><td>${escape(date(item.scheduled_arrival))}</td><td><button class="detail-button" data-flight="${item.id}">Düzenle</button></td></tr>`;
       const flight = item.flight_details;
-      return `<tr><td><strong class="flight-number">${escape(flight.flight_number)} <span class="muted">· #${item.id}</span></strong><span class="cell-secondary">${escape(flight.departure_airport_code)} → ${escape(flight.arrival_airport_code)}</span><span class="incident-description" title="${escape(item.description)}">${escape(item.description)}</span></td><td>${kind(item.kind)}<span class="cell-secondary">${priorityBadge(item.priority)}</span></td><td>${badge(item.status)}<span class="cell-secondary">${duration(item.waiting_seconds)} ${item.status === "OPEN" ? "bekliyor" : "bekledi"}</span></td><td>${assignedOperators(item).length ? assignedOperators(item).map((username) => `<span class="operator-cell"><span class="mini-avatar">${escape(username.slice(0, 2).toLocaleUpperCase("tr-TR"))}</span>${escape(username)}</span>`).join("") : '<span class="unassigned">— Atanmadı</span>'}</td><td><span class="operator-cell">${escape(date(item.updated_at))}</span><span class="cell-secondary">Açılış: ${escape(date(item.created_at))}</span></td><td><button class="detail-button" data-incident="${item.id}" aria-label="${escape(flight.flight_number)} arıza ${item.id} detayını aç">Detay ↗</button></td></tr>`;
+      return `<tr><td><strong class="flight-number">${escape(flight.flight_number)} <span class="muted">· #${item.id}</span></strong><span class="cell-secondary">${escape(flight.departure_airport_code)} → ${escape(flight.arrival_airport_code)}</span><span class="incident-description" title="${escape(item.description)}">${escape(item.description)}</span></td><td>${kind(item.kind)}<span class="cell-secondary">${priorityBadge(item.priority)}</span></td><td>${badge(item.status)}${incidentDurations(item)}</td><td>${assignedOperators(item).length ? assignedOperators(item).map((username) => `<span class="operator-cell"><span class="mini-avatar">${escape(username.slice(0, 2).toLocaleUpperCase("tr-TR"))}</span>${escape(username)}</span>`).join("") : '<span class="unassigned">— Atanmadı</span>'}</td><td><span class="operator-cell">${escape(date(item.updated_at))}</span><span class="cell-secondary">Açılış: ${escape(date(item.created_at))}</span></td><td><button class="detail-button" data-incident="${item.id}" aria-label="${escape(flight.flight_number)} arıza ${item.id} detayını aç">Detay ↗</button></td></tr>`;
     }).join("");
   }
 
@@ -431,7 +456,7 @@
       $("#detail-content").innerHTML = `
         <div class="detail-meta">${badge(incident.status)} ${kind(incident.kind)} ${priorityBadge(incident.priority)}</div>
         <p class="detail-description">${escape(incident.description)}</p>
-        <dl class="detail-grid"><div><dt>Güzergâh</dt><dd>${escape(flight.departure_airport_code)} → ${escape(flight.arrival_airport_code)}</dd></div><div><dt>Planlanan kalkış</dt><dd>${escape(date(flight.scheduled_departure))}</dd></div><div><dt>Oluşturan</dt><dd>${escape(incident.created_by)}</dd></div><div><dt>Atanan operatör</dt><dd>${escape(assignedOperators(incident).join(", ") || "Henüz atanmadı")}</dd></div><div><dt>${incident.status === "OPEN" ? "Açık bekleme süresi" : "Başlatılana kadar bekleme"}</dt><dd>${duration(incident.waiting_seconds)}</dd></div><div><dt>Son işlem zamanı</dt><dd>${escape(date(incident.updated_at))}</dd></div></dl>
+        <dl class="detail-grid"><div><dt>Güzergâh</dt><dd>${escape(flight.departure_airport_code)} → ${escape(flight.arrival_airport_code)}</dd></div><div><dt>Planlanan kalkış</dt><dd>${escape(date(flight.scheduled_departure))}</dd></div><div><dt>Oluşturan</dt><dd>${escape(incident.created_by)}</dd></div><div><dt>Atanan operatör</dt><dd>${escape(assignedOperators(incident).join(", ") || "Henüz atanmadı")}</dd></div><div><dt>${incident.status === "OPEN" ? "Açık bekleme süresi" : "Başlatılana kadar bekleme"}</dt><dd>${timer(incident, "waiting_seconds")}</dd></div><div><dt>İşlem süresi</dt><dd>${timer(incident, "processing_seconds")}</dd></div><div><dt>Toplam süre</dt><dd>${timer(incident, "total_seconds")}</dd></div><div><dt>Açılış zamanı</dt><dd>${escape(date(incident.created_at))}</dd></div><div><dt>İşe başlama zamanı</dt><dd>${escape(date(incident.started_at))}</dd></div><div><dt>Çözüm zamanı</dt><dd>${escape(date(incident.resolved_at))}</dd></div><div><dt>Son işlem zamanı</dt><dd>${escape(date(incident.updated_at))}</dd></div></dl>
         ${incident.resolution_notes ? `<div class="resolution"><strong>Çözüm notu</strong>${escape(incident.resolution_notes)}</div>` : ""}
         ${actions ? `<section class="detail-actions" aria-label="Arıza işlemleri">${actions}</section>` : ""}
         <p id="detail-error" class="form-error detail-error" role="alert" hidden></p>
