@@ -38,6 +38,24 @@ class Flight(models.Model):
         return f"{self.flight_number} {self.scheduled_departure:%Y-%m-%d}"
 
 
+class FlightAuditEvent(models.Model):
+    class Type(models.TextChoices):
+        CREATED = "CREATED", "Created"
+        UPDATED = "UPDATED", "Updated"
+        DELETED = "DELETED", "Deleted"
+
+    # Keep the original identifier and snapshots even after a flight is deleted.
+    flight_identifier = models.PositiveBigIntegerField(db_index=True)
+    event_type = models.CharField(max_length=8, choices=Type.choices)
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    before = models.JSONField(default=dict)
+    after = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "pk"]
+
+
 class Incident(models.Model):
     class Priority(models.TextChoices):
         LOW = "LOW", "Low"

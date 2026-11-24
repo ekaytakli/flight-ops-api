@@ -2,6 +2,67 @@
 
 Uçuş gecikmelerini ve iptallerini takip etmek için PostgreSQL kullanan bir Django REST Framework API'si. Ekip sorumluları uçuş ve incident kayıtları oluşturur, kayıtları operatörlere atar ve olay geçmişini inceler. Operatörler yalnızca kendilerine atanmış kayıtları görür; bu kayıtlar üzerinde sırasıyla işi başlatıp çözümü tamamlayabilir.
 
+## Teknik servis kullanım değerlendirmesi — 24 Kasım 2026
+
+**Karar:** Mevcut uygulama, uçuş gecikmesi/iptali için ekip koordinasyonu ve
+operasyonel olay takibi temelidir. Bir havayolu teknik servisinin ana bakım kayıt
+sistemi olarak kullanıma hazır değildir. Kod incelemesi; `models.py`, `services.py`,
+`views.py`, yetkiler, yönetim paneli, üretim ayarları ve testleri kapsar.
+Canlı şirket süreçleri, gerçek yük, yedek geri yükleme ve kurum yetki matrisi bu
+incelemede doğrulanmamıştır.
+
+Olumlu temel: rol ve atama bazlı erişim, zorunlu çözüm notu, işlemle birlikte
+yazılan olay geçmişi, PostgreSQL satır kilitleri, ilişkili uçuşların silinmesini
+engelleyen koruma ve ayrı HTTPS/Redis üretim ayarları vardır.
+
+| Öncelik | Eksik / kod kanıtı | Şirket kullanımına etkisi ve tamamlanma ölçütü |
+| --- | --- | --- |
+| Kritik | `Flight` yalnızca sefer, meydan ve zaman; `Incident` yalnızca gecikme/iptal tutuyor. | Uçak tescili, tip, müşteri/havayolu, bakım istasyonu, ATA bölümü, teknik log ve iş emri ilişkileri eklenmeli. Sefer değişse veya arıza başka sefere taşınsa da aynı uçaktaki teknik geçmiş izlenebilmeli. |
+| Kritik | `resolve_incident`, ekip sorumlusu veya atanan operatörün notuyla kapanıyor. | Operasyon kapanışı ile yetkili bakım çıkış onayı ayrı akışlar olmalı. Yetki kapsamı, personel yetkilendirmesi, gerekli bağımsız kontroller ve imza/kanıt kaydı doğrulanmadan bakım çıkış onayı verilememeli. |
+| Yüksek | Bakım görevi, AMM/TSM referansı ve revizyonu, ölçüm/işlem kanıtı, ek dosya modeli yok. | Yapılan bakım yeniden kurulabilir olmalı; iş kartları, kullanılan doküman revizyonları ve korunan ekler kayda bağlanmalı. |
+| Yüksek | Parça, seri numarası, sökülen/takılan komponent ve kalibrasyon modeli yok. | Parça ve alet izlenebilirliği, uygunluk belgeleri, stok hareketleri ve kalibrasyon durumu iş emriyle ilişkilendirilmeli. |
+| Yüksek | Müşteri/şirket/istasyon kapsamı yok; ekip sorumlusu tüm kayıtları görüyor. | Birden fazla müşteri veya istasyona hizmet verilecekse kapsam sunucuda uygulanmalı; müşteriler arası liste, arama, detay ve geçmiş erişimleri test edilmeli. |
+| Yüksek | `assign_incident` yalnızca `OPEN` durumunda atamaya izin veriyor. | İşlemdeki iş için gerekçeli vardiya devri ve yeniden atama gerekir; eski/yeni sorumlu ve zaman geçmişte korunmalı. |
+| Yüksek | MEL/CDL erteleme, AOG durumu, son tarih ve eskalasyon modeli yok. | Teknik öncelik ve gecikme nedeni ayrılmalı; erteleme yetkisi ve süreleri doğrulanmalı, yaklaşan/aşılan süreler sorumluya görünmeli. |
+| Yüksek | Token kimlik doğrulamasında süre sonu/MFA/SSO yok. | Kurumun kimlik sağlayıcısı, süreli oturum, merkezi iptal ve erişim denetimi tasarlanmalı. Giriş hız sınırı mevcut; tek başına kurumsal oturum politikası sağlamaz. |
+| Yüksek | Depoda yedekleme/geri yükleme ve alarm prosedürü yok. | RPO/RTO, saklama, ayrı konumda yedek ve periyodik geri yükleme denemesi tanımlanmalı; sağlık kontrolleri, hata ve kuyruk/servis alarmları işletilmeli. |
+| Orta | Liste araması, sayaçlar ve sayfalama var; SLA raporu ve kayıt dışa aktarımı yok. | Vardiya özeti, AOG bekleme, iş yükü, geciken işler ve denetlenebilir raporlar müşteri sözleşmelerine göre hazırlanmalı. |
+
+Bu incelemede yapılan iyileştirmeler:
+
+- Her API uçuş oluşturma/değiştirme/silme işlemi `FlightAuditEvent` kaydıyla
+  kullanıcı, zaman ve önceki/sonraki değerleri saklar. Değişmeyen güncelleme ek
+  kayıt yazmaz; başarısız denetim kaydı tüm işlemi geri alır. Silinen uçuşun
+  kimliği ve son değerleri korunur. Güncellemeler kilitli güncel satır üzerinde
+  doğrulanır. Yönetim panelinde uçuş ve uçuş geçmişi salt okunurdur; değişiklikler
+  API/operasyon panelinden yapılır. Geçmiş, yetkili yönetici tarafından
+  `/admin/incidents/flightauditevent/` ekranından incelenebilir.
+- Herkese açık giriş ekranındaki örnek kullanıcı/parola bilgileri kaldırıldı.
+- Panelde operasyon kapanışının CRS yerine geçmediği belirtildi.
+
+Yeni sürümde dağıtımdan önce `python manage.py migrate` çalıştırılmalıdır.
+`0005` migration'ı yeni denetim tablosunu oluşturur; mevcut uçuşlar için geçmişe
+dönük işlem/aktör bilgisi üretmez. Doğrudan ORM/SQL işlemleri ve demo komutları
+bu API denetim yolunu kullanmaz. Bu kayıtlar veritabanı yöneticisinin müdahalesine
+karşı değiştirilemez arşiv sağlamaz; üretimde veritabanı yetkileri ve ayrı denetim
+arşivi ayrıca tasarlanmalıdır.
+
+Önerilen sıra: önce teknik kimlik/iş emri modeli ve müşteri kapsamı; ardından
+yetkili bakım onayı, vardiya devri ve kanıt kayıtları; sonra parça/alet,
+erteleme/eskalasyon ve kurumsal işletim. Teknik bakımın resmi kayıt sistemi
+olmadan önce gerçek servis ekibiyle uçtan uca kabul senaryoları tamamlanmalıdır.
+
+Referans çerçevesi: [EASA Continuing Airworthiness, Part-145 (özellikle
+145.A.50 ve 145.A.55)](https://www.easa.europa.eu/en/document-library/easy-access-rules/online-publications/easy-access-rules-continuing-airworthiness?erules-id=ERULES-1963177438-272).
+Bu maddeler bakım çıkış onayı ve bakım kayıtlarının ayrı gereklilikler olduğunu
+gösterir. Buradaki ürün boşluk analizi bir uygunluk belgesi değildir; uygulanacak
+SHGM/EASA kuralları şirketin onay kapsamı ve prosedürleri üzerinden belirlenmelidir.
+
+Doğrulama: SQLite test ortamında 53 test çalıştırıldı; 50 test geçti, yalnızca
+PostgreSQL satır kilidiyle çalışan 3 test atlandı. Django sistem kontrolü,
+migration tutarlılık kontrolü ve OpenAPI doğrulaması geçti. Yerel Docker servisine
+bağlanılamadığı için bu incelemede PostgreSQL üzerinde tekrar doğrulama yapılamadı.
+
 ## Özellikler
 
 - Uçuş yönetimi ve role göre erişim sağlayan incident REST uç noktaları.

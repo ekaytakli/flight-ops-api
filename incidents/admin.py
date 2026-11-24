@@ -1,12 +1,38 @@
 from django.contrib import admin
 
-from .models import Flight, Incident, IncidentEvent
+from .models import Flight, FlightAuditEvent, Incident, IncidentEvent
 
 
 @admin.register(Flight)
 class FlightAdmin(admin.ModelAdmin):
     list_display = ("flight_number", "departure_airport_code", "arrival_airport_code", "scheduled_departure")
     search_fields = ("flight_number", "departure_airport_code", "arrival_airport_code")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(FlightAuditEvent)
+class FlightAuditEventAdmin(admin.ModelAdmin):
+    list_display = ("flight_identifier", "event_type", "actor", "created_at")
+    list_filter = ("event_type",)
+    search_fields = ("=flight_identifier", "actor__username")
+    readonly_fields = tuple(field.name for field in FlightAuditEvent._meta.fields)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 class IncidentEventInline(admin.TabularInline):

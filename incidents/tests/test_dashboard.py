@@ -33,6 +33,9 @@ class DashboardTests(APITestCase):
         self.assertNotContains(response, 'class="route-art"')
         self.assertNotContains(response, self.lead.username)
         self.assertNotContains(response, self.flight.flight_number)
+        self.assertNotContains(response, "Lead-Local-2026!")
+        self.assertNotContains(response, "Operator-Local-2026!")
+        self.assertNotContains(response, "Demo giriş bilgileri")
 
     def test_current_user_requires_authentication_and_an_operations_role(self):
         self.assertEqual(self.client.get("/api/auth/me/").status_code, 401)

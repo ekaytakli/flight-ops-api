@@ -12,7 +12,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Flight, Incident, IncidentEvent
+from .models import Flight, FlightAuditEvent, Incident, IncidentEvent
 from .exceptions import FlightDeletionConflict
 from .filters import IncidentOrderingFilter, StableOrderingFilter
 from .pagination import OperationsPagination
@@ -92,11 +92,48 @@ class FlightViewSet(viewsets.ModelViewSet):
     ordering_fields = ["scheduled_departure", "scheduled_arrival", "flight_number", "id"]
     ordering = ["scheduled_departure", "id"]
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if self.action in ("update", "partial_update", "destroy"):
+            return queryset.select_for_update()
+        return queryset
+
+    @transaction.atomic
+    def update(self, request, *args, **kwargs):
+        return super().update(request, *args, **kwargs)
+
+    @transaction.atomic
+    def destroy(self, request, *args, **kwargs):
+        return super().destroy(request, *args, **kwargs)
+
+    @transaction.atomic
+    def perform_create(self, serializer):
+        flight = serializer.save()
+        FlightAuditEvent.objects.create(
+            flight_identifier=flight.pk, event_type=FlightAuditEvent.Type.CREATED,
+            actor=self.request.user, after=dict(FlightSerializer(flight).data),
+        )
+
+    def perform_update(self, serializer):
+        before = dict(FlightSerializer(serializer.instance).data)
+        flight = serializer.save()
+        after = dict(FlightSerializer(flight).data)
+        if before != after:
+            FlightAuditEvent.objects.create(
+                flight_identifier=flight.pk, event_type=FlightAuditEvent.Type.UPDATED,
+                actor=self.request.user, before=before, after=after,
+            )
+
     def perform_destroy(self, instance):
+        before = dict(FlightSerializer(instance).data)
         try:
             instance.delete()
         except ProtectedError as error:
             raise FlightDeletionConflict() from error
+        FlightAuditEvent.objects.create(
+            flight_identifier=before["id"], event_type=FlightAuditEvent.Type.DELETED,
+            actor=self.request.user, before=before,
+        )
 
 
 @extend_schema_view(
